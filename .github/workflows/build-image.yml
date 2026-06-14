@@ -1,0 +1,237 @@
+name: Build image
+
+on:
+  workflow_dispatch:
+    inputs:
+      should_publish_release:
+        description: Upload to GitHub Release
+        type: boolean
+        default: true
+      arch_md5:
+        description: Rootfs tarball MD5 (optional; empty = fetch current)
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-image
+  cancel-in-progress: false
+
+env:
+  ARCH_ROOTFS_MD5_URL: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - id: arch_md5
+        if: env.ACT != 'true'
+        run: |
+          set -euo pipefail
+
+          if [ -n "${{ inputs.arch_md5 }}" ]; then
+            MD5="${{ inputs.arch_md5 }}"
+          else
+            MD5=$(curl -fsSL "$ARCH_ROOTFS_MD5_URL" | awk '{print $1}')
+          fi
+
+          [ -n "$MD5" ] || { echo "Error: could not resolve Arch rootfs MD5" >&2; exit 1; }
+
+          echo "value=$MD5" >> "$GITHUB_OUTPUT"
+          echo "Arch rootfs cache key MD5: $MD5"
+
+      - name: Cache U-Boot tree
+        if: env.ACT != 'true'
+        id: cache_uboot
+        uses: actions/cache@v5
+        with:
+          path: |
+            cache/u-boot
+            cache/u-boot-build
+          key: uboot-${{ hashFiles('scripts/common.sh', 'scripts/bootloader.sh') }}
+
+      - name: Cache TF-A tree
+        if: env.ACT != 'true'
+        id: cache_tfa
+        uses: actions/cache@v5
+        with:
+          path: |
+            cache/arm-trusted-firmware
+            cache/trusted-firmware
+          key: tfa-${{ hashFiles('scripts/common.sh', 'scripts/trusted-firmware.sh') }}
+
+      - name: Cache rootfs tarball
+        if: env.ACT != 'true'
+        id: cache_rootfs
+        uses: actions/cache@v5
+        with:
+          path: cache/rootfs
+          key: arch-rootfs-${{ steps.arch_md5.outputs.value }}
+
+      - name: Cache status
+        if: env.ACT != 'true'
+        run: |
+          echo "TF-A cache-hit: ${{ steps.cache_tfa.outputs.cache-hit }}"
+          echo "u-boot cache-hit: ${{ steps.cache_uboot.outputs.cache-hit }}"
+          echo "rootfs cache-hit: ${{ steps.cache_rootfs.outputs.cache-hit }} (key arch-rootfs-${{ steps.arch_md5.outputs.value }})"
+          ls -la cache/rootfs 2>/dev/null || echo "cache/rootfs empty or missing"
+
+      - name: Install build dependencies
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+          mapfile -t deps < <(./build-image.sh --print-deps)
+          # x86_64 job container: aarch64 arch-chroot needs qemu binfmt (hooks skip in Docker)
+          pacman -S --noconfirm --needed qemu-user-static qemu-user-static-binfmt xz "${deps[@]}"
+          mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
+          /usr/lib/systemd/systemd-binfmt
+          test -f /proc/sys/fs/binfmt_misc/qemu-aarch64
+
+      - name: Build image
+        run: |
+          set -euo pipefail
+          rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES \
+            output/SOURCE_INFO_R2S_KERNEL.txt
+
+          build_image_variant() {
+            local variant="$1"
+            echo "==> Building ${variant} image"
+            KERNEL_VARIANT="$variant" ./build-image.sh
+          }
+
+          build_image_variant stock
+          build_image_variant minimal
+        env:
+          CI: "1"
+          CACHE_DIR: cache
+          OUTPUT_DIR: output
+          ARCH_ROOTFS_MD5: ${{ steps.arch_md5.outputs.value }}
+          # Stay under GitHub's 2147483648-byte release/artifact file cap
+          IMAGE_SIZE: 1900M
+          SHOULD_SKIP_TFA_REBUILD: "1"
+          SHOULD_SKIP_UBOOT_REBUILD: "1"
+
+      - name: List images
+        run: |
+          set -euo pipefail
+          find output -maxdepth 1 -type f -name '*.img' -printf '%f\n' | sort > output/IMAGES
+          [ -s output/IMAGES ] || { echo "Error: no images built" >&2; exit 1; }
+          cat output/IMAGES
+
+      - name: Release names
+        id: release
+        run: |
+          base="$(awk '/^nanopi-r2s-arch-[0-9]{4}-[0-9]{2}-[0-9]{2}\.img$/ { sub(/\.img$/, ""); print; exit }' output/IMAGES)"
+          if [ -z "$base" ]; then
+            img="$(head -n1 output/IMAGES)"
+            base="${img%.img}"
+          fi
+
+          default_branch="${{ github.event.repository.default_branch }}"
+
+          if [ "$GITHUB_REF_NAME" = "$default_branch" ]; then
+            tag="${base}-r${GITHUB_RUN_NUMBER}"
+            title="$base"
+            prerelease=false
+          else
+            safe_ref="$(printf '%s' "$GITHUB_REF_NAME" | tr -c 'A-Za-z0-9._-' '-')"
+            tag="test-${safe_ref}-${GITHUB_RUN_NUMBER}"
+            title="Test image ${safe_ref} #${GITHUB_RUN_NUMBER}"
+            prerelease=true
+          fi
+
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "title=$title" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Compress image for release
+        id: compress
+        run: |
+          set -euo pipefail
+          rm -f output/*.img.xz output/SHA256SUMS
+          while IFS= read -r img; do
+            xzimg="${img}.xz"
+            xz -9 -T0 -k "output/$img"
+            xz_size=$(stat -c%s "output/$xzimg")
+            echo "$xzimg: $xz_size bytes"
+            if [ "$xz_size" -ge 2147483648 ]; then
+              echo "Error: $xzimg exceeds GitHub's 2147483648-byte asset limit" >&2
+              exit 1
+            fi
+          done < output/IMAGES
+          (cd output && sha256sum *.img.xz) > output/SHA256SUMS
+
+      - name: Stage release legal files
+        run: |
+          set -euo pipefail
+          cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
+            SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
+          test -f output/SOURCE_INFO_R2S_KERNEL.txt
+
+      - name: Upload build artifact
+        if: env.ACT != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.release.outputs.base }}
+          path: |
+            output/*.img.xz
+            output/SHA256SUMS
+            output/LICENSE
+            output/LICENSE_GPL-2.0-or-later.txt
+            output/NOTICE
+            output/LICENSE_TFA.txt
+            output/SOURCE_INFO_TFA.txt
+            output/SOURCE_OFFER_U_BOOT.txt
+            output/SOURCE_INFO_R2S_KERNEL.txt
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Publish GitHub Release
+        if: env.ACT != 'true' && inputs.should_publish_release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.title }}
+          draft: false
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          generate_release_notes: false
+          body: |
+            **Verify:** `sha256sum -c SHA256SUMS`
+
+            **Images:**
+            - `nanopi-r2s-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`
+            - `nanopi-r2s-arch-minimal-kernel-*.img.xz`: `linux-nanopi-r2s-minimal` from `nanopi-r2s-kernel-arch`
+
+            **Flash:** confirm the SD card with `lsblk`, then replace `/dev/sdX`:
+
+            ```bash
+            xzcat IMAGE.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
+            ```
+
+            Arch Linux ARM rootfs MD5: `${{ steps.arch_md5.outputs.value }}`
+
+            **Included:** LICENSE, LICENSE_GPL-2.0-or-later.txt, NOTICE, LICENSE_TFA.txt, SOURCE_INFO_TFA.txt, SOURCE_OFFER_U_BOOT.txt, SOURCE_INFO_R2S_KERNEL.txt
+          files: |
+            output/*.img.xz
+            output/SHA256SUMS
+            output/LICENSE
+            output/LICENSE_GPL-2.0-or-later.txt
+            output/NOTICE
+            output/LICENSE_TFA.txt
+            output/SOURCE_INFO_TFA.txt
+            output/SOURCE_OFFER_U_BOOT.txt
+            output/SOURCE_INFO_R2S_KERNEL.txt

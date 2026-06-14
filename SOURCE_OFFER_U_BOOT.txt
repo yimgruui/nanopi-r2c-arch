@@ -1,0 +1,27 @@
+U-Boot source — nanopi-r2s-arch images
+========================================
+
+The SD card images contain U-Boot binaries built from source. U-Boot is
+licensed under GPL-2.0-or-later.
+
+Corresponding source (public)
+-----------------------------
+Complete source for the U-Boot version used in the image:
+
+  https://source.denx.de/u-boot/u-boot.git
+  Tag: v2026.04
+  Commit: 88dc2788777babfd6322fa655df549a019aa1e69
+
+Clone example:
+
+  git clone https://source.denx.de/u-boot/u-boot.git
+  git checkout 88dc2788777babfd6322fa655df549a019aa1e69
+
+How this project builds it
+--------------------------
+The public nanopi-r2s-arch repository documents and automates the build:
+
+  ./build-image.sh
+
+Configuration: nanopi-r2s-rk3328_defconfig. U-Boot builds the mainline
+Rockchip `u-boot-rockchip.bin` image with TF-A BL31 supplied via `BL31=...`.

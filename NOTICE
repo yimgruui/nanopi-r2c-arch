@@ -1,0 +1,49 @@
+Third-Party Components in Released SD Card Images
+===================================================
+
+The `.img` files produced by this builder are combined works. They are NOT
+entirely covered by the GPL-2.0-or-later license of this repository's scripts.
+
+Release and CI artifact downloads include LICENSE, this NOTICE,
+LICENSE_GPL-2.0-or-later.txt, LICENSE_TFA.txt, SOURCE_INFO_TFA.txt,
+SOURCE_OFFER_U_BOOT.txt, and SOURCE_INFO_R2S_KERNEL.txt alongside the image.
+
+Components fetched or built at image-creation time include:
+
+Trusted Firmware-A BL31 (BSD-3-Clause)
+--------------------------------------
+- Source: https://github.com/ARM-software/arm-trusted-firmware.git
+- Tag: v2.15.0 (commit da738d5eae93af342fdc4995dd3c05acb4c9d757)
+- Built from source during image creation (PLAT=rk3328)
+- License and source information: LICENSE_TFA.txt, SOURCE_INFO_TFA.txt
+
+U-Boot (GPL-2.0-or-later)
+-------------------------
+- Source: https://source.denx.de/u-boot/u-boot.git
+- Tag: v2026.04 (commit 88dc2788777babfd6322fa655df549a019aa1e69, signed tag)
+- Built from source during image creation (nanopi-r2s-rk3328_defconfig)
+- Produces the mainline Rockchip `u-boot-rockchip.bin` image used on the SD card
+- GPL source information: SOURCE_OFFER_U_BOOT.txt
+
+NanoPi R2S minimal kernel package (GPL-2.0-only)
+------------------------------------------------
+- Package: linux-nanopi-r2s-minimal
+- Source/package repository: https://github.com/therealcoder1337/nanopi-r2s-kernel-arch
+- Used only by the `nanopi-r2s-arch-minimal-kernel-*` image variant
+- Source archive and merged kernel config are published with the matching
+  kernel package release
+- Source information: SOURCE_INFO_R2S_KERNEL.txt
+
+Arch Linux ARM root filesystem (mixed licenses)
+------------------------------------------------
+- Project: https://archlinuxarm.org
+- Source tarball: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
+- Package build/source metadata: https://github.com/archlinuxarm/PKGBUILDs
+- Build verifies the tarball with GPG key 68B3537F39A313B3E574D06777193F152BDBE6A6
+  (see vendor/alarmsigning.gpg in the source repository)
+- The image contains many packages (kernel, userspace) under GPL, LGPL, and
+  other open-source licenses; per-package license texts are on the device under
+  /usr/share/licenses
+
+This repository's scripts (build-image.sh, scripts/, workflows) are licensed
+under GPL-2.0-or-later — see LICENSE and LICENSE_GPL-2.0-or-later.txt.

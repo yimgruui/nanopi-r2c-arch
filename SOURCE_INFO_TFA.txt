@@ -1,0 +1,26 @@
+Trusted Firmware-A source — nanopi-r2s-arch images
+====================================================
+
+The SD card images contain a BL31 binary built from Trusted Firmware-A.
+Trusted Firmware-A is licensed under BSD-3-Clause; see LICENSE_TFA.txt.
+
+Corresponding source (public)
+-----------------------------
+Source for the TF-A version used in the image:
+
+  https://github.com/ARM-software/arm-trusted-firmware.git
+  Tag: v2.15.0
+  Commit: da738d5eae93af342fdc4995dd3c05acb4c9d757
+
+Clone example:
+
+  git clone https://github.com/ARM-software/arm-trusted-firmware.git
+  git checkout da738d5eae93af342fdc4995dd3c05acb4c9d757
+
+How this project builds it
+--------------------------
+The image builder uses upstream TF-A without local patches:
+
+  make PLAT=rk3328 bl31
+
+U-Boot receives the resulting BL31 through its normal Rockchip/binman build.

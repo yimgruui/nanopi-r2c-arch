@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure NanoPi R2S GPIO network LEDs
+After=systemd-udev-trigger.service
+ConditionPathExistsGlob=/sys/class/leds/nanopi-r2s:green:*
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nanopi-r2s-leds.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

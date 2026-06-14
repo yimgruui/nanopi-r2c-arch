@@ -1,0 +1,11 @@
+[Unit]
+Description=Resize root filesystem to fill SD card on first boot
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/resize-rootfs.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
