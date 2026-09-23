@@ -83,7 +83,7 @@ print_usage() {
     cat <<EOF
 Usage: $(basename "${BUILD_SCRIPT:-build-image.sh}") [OPTIONS]
 
-Build a NanoPi R2S Arch Linux ARM SD card image.
+Build a NanoPi R2C Arch Linux ARM SD card image.
 
 Options:
   --print-deps       Print required pacman packages (one per line) and exit
@@ -93,9 +93,9 @@ Options:
 Environment:
   KERNEL_VARIANT          Default: stock (stock|minimal)
   IMAGE_SIZE             Default: 1900M
-  ROOTFS_HOSTNAME        Default: nanopi-r2s (image /etc/hostname)
-  R2S_KERNEL_REPO_URL     Minimal-kernel pacman repo URL
-  R2S_KERNEL_PKGVER       Optional minimal-kernel package version pin
+  ROOTFS_HOSTNAME        Default: nanopi-r2c (image /etc/hostname)
+  R2C_KERNEL_REPO_URL     Minimal-kernel pacman repo URL
+  R2C_KERNEL_PKGVER       Optional minimal-kernel package version pin
 
 Run as root: sudo $(basename "${BUILD_SCRIPT:-build-image.sh}")
 EOF
@@ -139,7 +139,7 @@ setup_directories() {
     UBOOT_DIR="$(cd "$UBOOT_DIR" && pwd)"
     UBOOT_BUILD_DIR="$(cd "$UBOOT_BUILD_DIR" && pwd)"
 
-    TFA_BL31="$TFA_OUTPUT_DIR/bl31-nanopi-r2s.elf"
+    TFA_BL31="$TFA_OUTPUT_DIR/bl31-nanopi-r2c.elf"
     UBOOT_ROCKCHIP_BIN="$UBOOT_BUILD_DIR/u-boot-rockchip.bin"
 
     cd "$SCRIPT_DIR"
