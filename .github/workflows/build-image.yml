@@ -113,7 +113,7 @@ jobs:
           }
 
           build_image_variant stock
-          build_image_variant minimal
+          # build_image_variant minimal
         env:
           CI: "1"
           CACHE_DIR: cache
@@ -198,7 +198,7 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            # output/SOURCE_INFO_R2C_KERNEL.txt
           if-no-files-found: error
           compression-level: 0
 
@@ -216,7 +216,7 @@ jobs:
 
             **Images:**
             - `nanopi-r2c-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`
-            - `nanopi-r2c-arch-minimal-kernel-*.img.xz`: `linux-nanopi-r2c-minimal` from `nanopi-r2c-kernel-arch`
+            # - `nanopi-r2c-arch-minimal-kernel-*.img.xz`: `linux-nanopi-r2c-minimal` from `nanopi-r2c-kernel-arch`
 
             **Flash:** confirm the SD card with `lsblk`, then replace `/dev/sdX`:
 
@@ -236,4 +236,4 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            # output/SOURCE_INFO_R2C_KERNEL.txt
