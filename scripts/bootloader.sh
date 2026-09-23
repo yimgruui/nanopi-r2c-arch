@@ -103,6 +103,12 @@ build_uboot() {
     # (which assembles u-boot-rockchip.bin), so it must not be skipped.
     rm -f "$UBOOT_DIR/scripts/dtc/pylibfdt/libfdt_wrap.c"
 
+    # SWIG's default -python mode emits Python-2 C API (PyInt_*/PyString_*),
+    # which is an implicit-declaration error on GCC 15+. -py3 emits the
+    # Python-3 API. setup.py passes SWIG_OPTS (set in the Makefile) to swig.
+    sed -i 's/SWIG_OPTS="-I/SWIG_OPTS="-py3 -I/' \
+        "$UBOOT_DIR/scripts/dtc/pylibfdt/Makefile"
+
     echo "    -> Building U-Boot..."
     rm -rf "$UBOOT_BUILD_DIR"
     make -C "$UBOOT_DIR" O="$UBOOT_BUILD_DIR" nanopi-r2c-rk3328_defconfig >/dev/null
