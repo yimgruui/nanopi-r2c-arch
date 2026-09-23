@@ -1,7 +1,8 @@
 [Unit]
 Description=Configure NanoPi R2C GPIO network LEDs
 After=systemd-udev-trigger.service
-ConditionPathExistsGlob=/sys/class/leds/nanopi-r2c:green:*
+# Mainline rk3328-nanopi-r2c.dtb keeps the "nanopi-r2s:*" LED labels (shared r2 dtsi).
+ConditionPathExistsGlob=/sys/class/leds/nanopi-r2s:green:*
 
 [Service]
 Type=oneshot
