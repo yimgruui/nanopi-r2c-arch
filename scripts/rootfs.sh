@@ -231,6 +231,7 @@ extract_and_configure() {
     run_arch_chroot pacman-key --populate archlinuxarm
 
     verify_stock_kernel_r2c
+    install_fan_control
     prepare_mkinitcpio_chroot
 
     slim_rootfs
