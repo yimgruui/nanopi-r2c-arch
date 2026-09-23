@@ -129,6 +129,8 @@ jobs:
           PYTHON: python3
           HOSTCC: gcc
           # -------------------------
+          # 如果仍然失败，取消下面这行的注释
+          NO_PYTHON: "1"
 
       - name: List images
         run: |
