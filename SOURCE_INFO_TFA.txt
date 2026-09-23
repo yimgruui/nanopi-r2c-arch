@@ -1,4 +1,4 @@
-Trusted Firmware-A source — nanopi-r2s-arch images
+Trusted Firmware-A source — nanopi-r2c-arch images
 ====================================================
 
 The SD card images contain a BL31 binary built from Trusted Firmware-A.
