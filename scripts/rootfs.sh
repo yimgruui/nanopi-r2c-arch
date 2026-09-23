@@ -121,7 +121,7 @@ slim_rootfs() {
 
     run_chroot_pacman -Scc --noconfirm 2>/dev/null || run_chroot_pacman -Sc --noconfirm
 
-    cat > mnt/etc/pacman.conf.d/99-nanopi-r2s-slim.conf <<'EOF'
+    cat > mnt/etc/pacman.conf.d/99-nanopi-r2c-slim.conf <<'EOF'
 # Keep heavy GPU/WiFi firmware splits off this router image.
 [options]
 IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
@@ -158,14 +158,14 @@ verify_boot_files() {
 
 install_led_service() {
     echo "    → Installing GPIO LED service..."
-    install -D -m 0755 "$TEMPLATES_DIR/nanopi-r2s-leds.sh" \
-        mnt/usr/local/sbin/nanopi-r2s-leds.sh
-    install -D -m 0644 "$TEMPLATES_DIR/nanopi-r2s-leds.service" \
-        mnt/etc/systemd/system/nanopi-r2s-leds.service
+    install -D -m 0755 "$TEMPLATES_DIR/nanopi-r2c-leds.sh" \
+        mnt/usr/local/sbin/nanopi-r2c-leds.sh
+    install -D -m 0644 "$TEMPLATES_DIR/nanopi-r2c-leds.service" \
+        mnt/etc/systemd/system/nanopi-r2c-leds.service
 
     mkdir -p mnt/etc/systemd/system/multi-user.target.wants
-    ln -sf /etc/systemd/system/nanopi-r2s-leds.service \
-        mnt/etc/systemd/system/multi-user.target.wants/nanopi-r2s-leds.service
+    ln -sf /etc/systemd/system/nanopi-r2c-leds.service \
+        mnt/etc/systemd/system/multi-user.target.wants/nanopi-r2c-leds.service
 }
 
 extract_and_configure() {
