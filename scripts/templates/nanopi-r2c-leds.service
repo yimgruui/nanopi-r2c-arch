@@ -1,0 +1,12 @@
+[Unit]
+Description=Configure NanoPi R2C GPIO network LEDs
+After=systemd-udev-trigger.service
+ConditionPathExistsGlob=/sys/class/leds/nanopi-r2c:green:*
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nanopi-r2c-leds.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
