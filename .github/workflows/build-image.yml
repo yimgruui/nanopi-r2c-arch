@@ -95,8 +95,7 @@ jobs:
           pacman -Syu --noconfirm
           mapfile -t deps < <(./build-image.sh --print-deps)
           # x86_64 job container: aarch64 arch-chroot needs qemu binfmt (hooks skip in Docker)
-          pacman -S --needed --noconfirm swig python-setuptools
-          pacman -S --noconfirm --needed qemu-user-static qemu-user-static-binfmt xz "${deps[@]}"
+          pacman -S --noconfirm --needed qemu-user-static qemu-user-static-binfmt xz python swig python-setuptools "${deps[@]}"
           mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
           /usr/lib/systemd/systemd-binfmt
           test -f /proc/sys/fs/binfmt_misc/qemu-aarch64
@@ -181,7 +180,6 @@ jobs:
           set -euo pipefail
           cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
             SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
-          test -f output/SOURCE_INFO_R2C_KERNEL.txt
 
       - name: Upload build artifact
         if: env.ACT != 'true'
@@ -197,7 +195,6 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
           if-no-files-found: error
           compression-level: 0
 
@@ -235,4 +232,3 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
