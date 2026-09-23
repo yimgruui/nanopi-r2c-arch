@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
-# NanoPi R2C Arch Linux ARM image builder.
+# NanoPi R2C Arch Linux ARM image builder (stock ALARM linux-aarch64 kernel).
 # Boot chain: mainline U-Boot TPL/SPL + TF-A BL31 + U-Boot proper.
 
 BUILD_SCRIPT="${BASH_SOURCE[0]}"
@@ -12,7 +12,6 @@ TEMPLATES_DIR="$SCRIPTS_DIR/templates"
 
 source "$SCRIPTS_DIR/common.sh"
 source "$SCRIPTS_DIR/chroot.sh"
-source "$SCRIPTS_DIR/kernel.sh"
 source "$SCRIPTS_DIR/trusted-firmware.sh"
 source "$SCRIPTS_DIR/bootloader.sh"
 source "$SCRIPTS_DIR/rootfs.sh"
