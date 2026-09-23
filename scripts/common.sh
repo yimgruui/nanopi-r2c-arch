@@ -22,8 +22,8 @@ UBOOT_COMMIT="${UBOOT_COMMIT:-88dc2788777babfd6322fa655df549a019aa1e69}"
 
 KERNEL_VARIANT="${KERNEL_VARIANT:-stock}"
 case "$KERNEL_VARIANT" in
-    stock) IMAGE_PREFIX="nanopi-r2s-arch" ;;
-    minimal) IMAGE_PREFIX="nanopi-r2s-arch-minimal-kernel" ;;
+    stock) IMAGE_PREFIX="nanopi-r2c-arch" ;;
+    minimal) IMAGE_PREFIX="nanopi-r2c-arch-minimal-kernel" ;;
     *)
         echo "Error: KERNEL_VARIANT must be stock or minimal" >&2
         exit 1
@@ -33,7 +33,7 @@ IMAGE_NAME="${IMAGE_NAME:-${IMAGE_PREFIX}-$(date +%Y-%m-%d).img}"
 # GitHub release assets must be < 2^31 bytes; 2G is exactly at the limit and upload fails.
 IMAGE_SIZE="${IMAGE_SIZE:-1900M}"
 # Not HOSTNAME — Docker/GHA set that to the container id (breaks /etc/hostname).
-ROOTFS_HOSTNAME="${ROOTFS_HOSTNAME:-nanopi-r2s}"
+ROOTFS_HOSTNAME="${ROOTFS_HOSTNAME:-nanopi-r2c}"
 unset HOSTNAME
 PARTITION_OFFSET="${PARTITION_OFFSET:-16MiB}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
@@ -42,8 +42,8 @@ BOOT_SEEK_SECTORS=64
 ROOTFS_SEEK_SECTORS=32768
 SECTOR_SIZE=512
 MAX_BOOT_BYTES=$(((ROOTFS_SEEK_SECTORS - BOOT_SEEK_SECTORS) * SECTOR_SIZE))
-BOOT_DTB="rockchip/rk3328-nanopi-r2s.dtb"
-TFA_BL31="$TFA_OUTPUT_DIR/bl31-nanopi-r2s.elf"
+BOOT_DTB="rockchip/rk3328-nanopi-r2c.dtb"
+TFA_BL31="$TFA_OUTPUT_DIR/bl31-nanopi-r2c.elf"
 UBOOT_ROCKCHIP_BIN="$UBOOT_BUILD_DIR/u-boot-rockchip.bin"
 
 SHOULD_ENABLE_RESIZE="${SHOULD_ENABLE_RESIZE:-1}"
