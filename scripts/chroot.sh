@@ -133,8 +133,8 @@ prepare_mkinitcpio_chroot() {
     for preset in mnt/etc/mkinitcpio.d/*.preset; do
         [ -f "$preset" ] || continue
 
-        if ! grep -q 'nanopi-r2s: no fallback' "$preset" 2>/dev/null; then
-            sed -i "s/^PRESETS=.*/PRESETS=('default')  # nanopi-r2s: no fallback (autodetect breaks in cross-chroot)/" \
+        if ! grep -q 'nanopi-r2c: no fallback' "$preset" 2>/dev/null; then
+            sed -i "s/^PRESETS=.*/PRESETS=('default')  # nanopi-r2c: no fallback (autodetect breaks in cross-chroot)/" \
                 "$preset"
         fi
     done
@@ -168,9 +168,9 @@ run_chroot_mkinitcpio() {
     run_arch_chroot depmod -a "$kver"
 
     case "$kver" in
-        *-nanopi-r2s-minimal)
-            if [ -f mnt/etc/mkinitcpio.linux-nanopi-r2s-minimal.conf ]; then
-                config=(-c /etc/mkinitcpio.linux-nanopi-r2s-minimal.conf)
+        *-nanopi-r2c-minimal)
+            if [ -f mnt/etc/mkinitcpio.linux-nanopi-r2c-minimal.conf ]; then
+                config=(-c /etc/mkinitcpio.linux-nanopi-r2c-minimal.conf)
             fi
             ;;
     esac
