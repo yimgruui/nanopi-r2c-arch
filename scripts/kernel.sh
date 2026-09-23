@@ -1,15 +1,26 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Optional linux-nanopi-r2c-minimal image variant.
 
+# NOTE: the minimal kernel MUST be built with CONFIG_MOTORCOMM_PHY enabled —
+# the R2C's on-board WAN PHY is a Motorcomm YT8521S (the R2S uses a Realtek
+# RTL8211E). The stock linux-aarch64 kernel normally provides this driver.
 R2C_KERNEL_REPO_URL="${R2C_KERNEL_REPO_URL:-https://therealcoder1337.github.io/nanopi-r2c-kernel-arch/aarch64}"
 R2C_KERNEL_KEY_URL="${R2C_KERNEL_KEY_URL:-${R2C_KERNEL_REPO_URL}/nanopi-r2c-kernel-arch.pub}"
-R2C_KERNEL_KEY_FPR="${R2C_KERNEL_KEY_FPR:-AC8F5FC3C911CD57A5A1CDC103CB87E30BA22193}"
+R2C_KERNEL_KEY_FPR="${R2C_KERNEL_KEY_FPR:-}"
 R2C_KERNEL_PKGVER="${R2C_KERNEL_PKGVER:-}"
 
 trust_r2c_kernel_key() {
     local key="/tmp/nanopi-r2c-kernel-arch.pub"
     local expected="${R2C_KERNEL_KEY_FPR//[[:space:]]/}"
     local actual
+
+    if [ -z "$expected" ]; then
+        echo "Error: R2C_KERNEL_KEY_FPR is not set." >&2
+        echo "Import your r2c kernel repo key first, e.g.:" >&2
+        echo "  gpg --recv-keys <KEYID> && gpg --fingerprint <KEYID>" >&2
+        echo "then re-run with R2C_KERNEL_KEY_FPR=<40-hex-digit fingerprint>." >&2
+        return 1
+    fi
 
     wget -q -O "$key" "$R2C_KERNEL_KEY_URL"
     actual=$(gpg --show-keys --with-colons "$key" 2>/dev/null | awk -F: '/^fpr:/ {print $10; exit}')
@@ -104,7 +115,7 @@ write_minimal_kernel_source_info() {
 
     cat > "$OUTPUT_DIR/SOURCE_INFO_R2C_KERNEL.txt" <<EOF
 NanoPi R2C minimal kernel source — nanopi-r2c-arch images
-===========================================================
+=========================================================
 
 The minimal-kernel SD card image contains ${package}.
 
