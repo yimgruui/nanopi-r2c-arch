@@ -1,12 +1,12 @@
-# Arch Linux ARM boot script for NanoPi R2c
+# Arch Linux ARM boot script for NanoPi R2C
 
 test -n "${distro_bootpart}" || setenv distro_bootpart 1
 test -n "${devtype}"         || setenv devtype mmc
 test -n "${devnum}"          || setenv devnum 0
 test -n "${prefix}"          || setenv prefix /boot/
 
-setenv fdtfile     rockchip/rk3328-nanopi-r2c.dtb
-setenv rootdev     /dev/mmcblk0p1
+setenv fdtfile    rockchip/rk3328-nanopi-r2c.dtb
+setenv rootdev    /dev/mmcblk0p1
 setenv rootfstype  ext4
 
 setenv consoleargs "console=ttyS2,1500000 earlycon=uart8250,mmio32,0xff130000"
