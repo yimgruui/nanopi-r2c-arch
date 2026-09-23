@@ -167,14 +167,6 @@ run_chroot_mkinitcpio() {
     echo "    → Regenerating initramfs for ${kver}..."
     run_arch_chroot depmod -a "$kver"
 
-    case "$kver" in
-        *-nanopi-r2c-minimal)
-            if [ -f mnt/etc/mkinitcpio.linux-nanopi-r2c-minimal.conf ]; then
-                config=(-c /etc/mkinitcpio.linux-nanopi-r2c-minimal.conf)
-            fi
-            ;;
-    esac
-
     if ! run_arch_chroot mkinitcpio -k "$kver" "${config[@]}" -g /boot/initramfs-linux.img; then
         echo "Error: mkinitcpio failed for ${kver}" >&2
         return 1
