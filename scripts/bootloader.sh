@@ -106,8 +106,10 @@ build_uboot() {
     # SWIG's default -python mode emits Python-2 C API (PyInt_*/PyString_*),
     # which is an implicit-declaration error on GCC 15+. -py3 emits the
     # Python-3 API. setup.py passes SWIG_OPTS (set in the Makefile) to swig.
-    sed -i 's/SWIG_OPTS="-I/SWIG_OPTS="-py3 -I/' \
-        "$UBOOT_DIR/scripts/dtc/pylibfdt/Makefile"
+    sed -i \
+        -e 's/PyInt_AsLong(/PyLong_AsLong(/' \
+        -e 's/PyString_FromString(/PyUnicode_FromString(/' \
+        "$UBOOT_DIR/scripts/dtc/pylibfdt/libfdt.i_shipped"
 
     echo "    -> Building U-Boot..."
     rm -rf "$UBOOT_BUILD_DIR"
