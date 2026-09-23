@@ -123,6 +123,12 @@ jobs:
           IMAGE_SIZE: 1900M
           SHOULD_SKIP_TFA_REBUILD: "1"
           SHOULD_SKIP_UBOOT_REBUILD: "1"
+          # --- 新增的交叉编译配置 ---
+          CROSS_COMPILE: aarch64-linux-gnu-
+          ARCH: arm64
+          PYTHON: python3
+          HOSTCC: gcc
+          # -------------------------
 
       - name: List images
         run: |
