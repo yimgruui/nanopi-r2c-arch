@@ -15,11 +15,11 @@ enable_fan_pwm0() {
     status=$(fdtget -t s "$dtb" /pwm@ff1b0000 status 2>/dev/null || echo "")
 
     if [ "$status" = "okay" ]; then
-        echo "    → dtb already enables pwm0"
+        echo "    -> dtb already enables pwm0"
         return 0
     fi
 
-    echo "    → Enabling pwm0 in dtb (was '${status:-absent}')..."
+    echo "    -> Enabling pwm0 in dtb (was '${status:-absent}')..."
 
     fdtput -t s "$dtb" /pwm@ff1b0000 status okay || {
         echo "Error: fdtput failed on $dtb (/pwm@ff1b0000 status)" >&2
@@ -43,7 +43,7 @@ enable_fan_pwm0() {
 }
 
 install_fan_control() {
-    echo "    → Installing fan speed control (fan-monitor64)..."
+    echo "    -> Installing fan speed control (fan-monitor64)..."
 
     enable_fan_pwm0 "mnt/boot/dtbs/$BOOT_DTB"
 
@@ -66,5 +66,5 @@ install_fan_control() {
     rm -rf "$tmpdir"
 
     echo "       fan-monitor64 installed; fan-monitor.service enabled"
-    echo "       Curve: 51°C→5% 52°C→10% 54°C→20% 55°C→30% 58°C→50% 63°C→70% 75°C→100%"
+    echo "       Curve: 51C->5% 52C->10% 54C->20% 55C->30% 58C->50% 63C->70% 75C->100%"
 }
