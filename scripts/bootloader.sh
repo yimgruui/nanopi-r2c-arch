@@ -6,7 +6,7 @@ run_git_uboot() {
 }
 
 verify_uboot_release_tag() {
-    local gpg_home gpg_wrapper keyring="$SCRIPTS_DIR/vendor/u-boot-release.gpg"
+    local gpg_home gpg_wrapper keyring="$SCRIPT_DIR/vendor/u-boot-release.gpg"
     local has_gpg_error=0
 
     gpg_home=$(mktemp -d)
