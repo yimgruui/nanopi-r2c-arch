@@ -49,5 +49,5 @@ configure_led() {
 }
 
 wait_for_network_devices
-configure_led "nanopi-r2s:green:lan" "$LAN_IFACE"
-configure_led "nanopi-r2s:green:wan" "$WAN_IFACE"
+configure_led "nanopi-r2c:green:lan" "$LAN_IFACE"
+configure_led "nanopi-r2c:green:wan" "$WAN_IFACE"
