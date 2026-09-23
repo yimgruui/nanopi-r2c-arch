@@ -18,7 +18,7 @@ TFA_COMMIT="${TFA_COMMIT:-da738d5eae93af342fdc4995dd3c05acb4c9d757}"
 TFA_BUILD_TYPE="${TFA_BUILD_TYPE:-release}"
 UBOOT_GIT_URL="${UBOOT_GIT_URL:-https://source.denx.de/u-boot/u-boot.git}"
 UBOOT_TAG="${UBOOT_TAG:-v2026.04}"
-UBOOT_COMMIT="${UBOOT_COMMIT:-88dc2788777babfd6322fa655df549a019aa1e69}"
+UBOOT_COMMIT="${UBOOT_COMMIT:-88dc2788777babfd6322fa65df549a019aa1e69}"
 
 KERNEL_VARIANT="${KERNEL_VARIANT:-stock}"
 case "$KERNEL_VARIANT" in
@@ -72,7 +72,7 @@ PACMAN_DEPS=(
     libarchive
     parted
     python
-    python-pyelftools
+    python-pyoelftools
     python-setuptools
     swig
     util-linux
@@ -94,8 +94,9 @@ Environment:
   KERNEL_VARIANT          Default: stock (stock|minimal)
   IMAGE_SIZE             Default: 1900M
   ROOTFS_HOSTNAME        Default: nanopi-r2c (image /etc/hostname)
-  R2C_KERNEL_REPO_URL     Minimal-kernel pacman repo URL
-  R2C_KERNEL_PKGVER       Optional minimal-kernel package version pin
+  R2C_KERNEL_REPO_URL    Minimal-kernel pacman repo URL (required for minimal)
+  R2C_KERNEL_KEY_FPR     Minimal-kernel repo key fingerprint (required for minimal)
+  R2C_KERNEL_PKGVER      Optional minimal-kernel package version pin
 
 Run as root: sudo $(basename "${BUILD_SCRIPT:-build-image.sh}")
 EOF
