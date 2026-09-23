@@ -220,7 +220,6 @@ jobs:
 
             **Images:**
             - `nanopi-r2c-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`
-            - `nanopi-r2c-arch-minimal-kernel-*.img.xz`: `linux-nanopi-r2c-minimal` from `nanopi-r2c-kernel-arch`
 
             **Flash:** confirm the SD card with `lsblk`, then replace `/dev/sdX`:
 
