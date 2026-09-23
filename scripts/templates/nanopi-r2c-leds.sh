@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
+# Note: mainline rk3328-nanopi-r2c.dtb inherits the shared rk3328-nanopi-r2.dtsi,
+# so the GPIO LED labels remain "nanopi-r2s:*" even on the R2C.
 LAN_IFACE=""
 WAN_IFACE=""
 
@@ -49,5 +51,5 @@ configure_led() {
 }
 
 wait_for_network_devices
-configure_led "nanopi-r2c:green:lan" "$LAN_IFACE"
-configure_led "nanopi-r2c:green:wan" "$WAN_IFACE"
+configure_led "nanopi-r2s:green:lan" "$LAN_IFACE"
+configure_led "nanopi-r2s:green:wan" "$WAN_IFACE"
