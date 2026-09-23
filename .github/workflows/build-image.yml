@@ -95,6 +95,7 @@ jobs:
           pacman -Syu --noconfirm
           mapfile -t deps < <(./build-image.sh --print-deps)
           # x86_64 job container: aarch64 arch-chroot needs qemu binfmt (hooks skip in Docker)
+          pacman -S --needed --noconfirm swig python-setuptools
           pacman -S --noconfirm --needed qemu-user-static qemu-user-static-binfmt xz "${deps[@]}"
           mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null || true
           /usr/lib/systemd/systemd-binfmt
