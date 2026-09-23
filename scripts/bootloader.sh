@@ -99,7 +99,7 @@ build_uboot() {
 
     echo "    -> Building U-Boot..."
     rm -rf "$UBOOT_BUILD_DIR"
-    make -C "$UBOOT_DIR" O="$UBOOT_BUILD_DIR" nanopi-r2s-rk3328_defconfig >/dev/null
+    make -C "$UBOOT_DIR" O="$UBOOT_BUILD_DIR" nanopi-r2c-rk3328_defconfig >/dev/null
     make -C "$UBOOT_DIR" O="$UBOOT_BUILD_DIR" -j"$BUILD_JOBS" \
         CROSS_COMPILE=aarch64-linux-gnu- BL31="$TFA_BL31"
 
