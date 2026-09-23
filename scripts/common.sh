@@ -20,15 +20,7 @@ UBOOT_GIT_URL="${UBOOT_GIT_URL:-https://source.denx.de/u-boot/u-boot.git}"
 UBOOT_TAG="${UBOOT_TAG:-v2026.04}"
 UBOOT_COMMIT="${UBOOT_COMMIT:-88dc2788777babfd6322fa65df549a019aa1e69}"
 
-KERNEL_VARIANT="${KERNEL_VARIANT:-stock}"
-case "$KERNEL_VARIANT" in
-    stock) IMAGE_PREFIX="nanopi-r2c-arch" ;;
-    minimal) IMAGE_PREFIX="nanopi-r2c-arch-minimal-kernel" ;;
-    *)
-        echo "Error: KERNEL_VARIANT must be stock or minimal" >&2
-        exit 1
-        ;;
-esac
+IMAGE_PREFIX="nanopi-r2c-arch"
 IMAGE_NAME="${IMAGE_NAME:-${IMAGE_PREFIX}-$(date +%Y-%m-%d).img}"
 # GitHub release assets must be < 2^31 bytes; 2G is exactly at the limit and upload fails.
 IMAGE_SIZE="${IMAGE_SIZE:-1900M}"
@@ -83,7 +75,7 @@ print_usage() {
     cat <<EOF
 Usage: $(basename "${BUILD_SCRIPT:-build-image.sh}") [OPTIONS]
 
-Build a NanoPi R2C Arch Linux ARM SD card image.
+Build a NanoPi R2C Arch Linux ARM SD card image (stock linux-aarch64 kernel).
 
 Options:
   --print-deps       Print required pacman packages (one per line) and exit
@@ -91,12 +83,8 @@ Options:
   -h, --help         Show this help
 
 Environment:
-  KERNEL_VARIANT          Default: stock (stock|minimal)
   IMAGE_SIZE             Default: 1900M
   ROOTFS_HOSTNAME        Default: nanopi-r2c (image /etc/hostname)
-  R2C_KERNEL_REPO_URL    Minimal-kernel pacman repo URL (required for minimal)
-  R2C_KERNEL_KEY_FPR     Minimal-kernel repo key fingerprint (required for minimal)
-  R2C_KERNEL_PKGVER      Optional minimal-kernel package version pin
 
 Run as root: sudo $(basename "${BUILD_SCRIPT:-build-image.sh}")
 EOF
