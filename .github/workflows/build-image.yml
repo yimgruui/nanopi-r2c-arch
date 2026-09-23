@@ -115,7 +115,7 @@ jobs:
           # pyelftools for the pinned interpreter (pacman's python-pyelftools targets 3.14)
           rm -f /usr/lib/python3.13/EXTERNALLY-MANAGED
           python3 -m ensurepip
-          python3 -m pip install --break-system-packages pyelftools
+          python3 -m pip install setuptools pyelftools
 
       - name: Build image
         run: |
