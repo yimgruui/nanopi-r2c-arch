@@ -64,7 +64,7 @@ PACMAN_DEPS=(
     libarchive
     parted
     python
-    python-pyoelftools
+    python-pyelftools
     python-setuptools
     swig
     util-linux
