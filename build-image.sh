@@ -16,6 +16,7 @@ source "$SCRIPTS_DIR/trusted-firmware.sh"
 source "$SCRIPTS_DIR/bootloader.sh"
 source "$SCRIPTS_DIR/rootfs.sh"
 source "$SCRIPTS_DIR/postprocess.sh"
+source "$SCRIPTS_DIR/fan-control.sh"
 
 run_build() {
     require_root
