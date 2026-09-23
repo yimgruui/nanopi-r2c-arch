@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
-# NanoPi R2S Arch Linux ARM image builder.
+# NanoPi R2C Arch Linux ARM image builder.
 # Boot chain: mainline U-Boot TPL/SPL + TF-A BL31 + U-Boot proper.
 
 BUILD_SCRIPT="${BASH_SOURCE[0]}"
