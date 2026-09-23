@@ -103,17 +103,8 @@ jobs:
       - name: Build image
         run: |
           set -euo pipefail
-          rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES \
-            output/SOURCE_INFO_R2C_KERNEL.txt
-
-          build_image_variant() {
-            local variant="$1"
-            echo "==> Building ${variant} image"
-            KERNEL_VARIANT="$variant" ./build-image.sh
-          }
-
-          build_image_variant stock
-          # build_image_variant minimal
+          rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES
+          ./build-image.sh
         env:
           CI: "1"
           CACHE_DIR: cache
@@ -123,8 +114,6 @@ jobs:
           IMAGE_SIZE: 1900M
           SHOULD_SKIP_TFA_REBUILD: "1"
           SHOULD_SKIP_UBOOT_REBUILD: "1"
-          R2C_KERNEL_REPO_URL: ${{ vars.R2C_KERNEL_REPO_URL }}
-          R2C_KERNEL_KEY_FPR: ${{ secrets.R2C_KERNEL_KEY_FPR }}
 
       - name: List images
         run: |
@@ -182,7 +171,6 @@ jobs:
           set -euo pipefail
           cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
             SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
-          test -f output/SOURCE_INFO_R2C_KERNEL.txt
 
       - name: Upload build artifact
         if: env.ACT != 'true'
@@ -213,8 +201,7 @@ jobs:
           body: |
             **Verify:** `sha256sum -c SHA256SUMS`
 
-            **Images:**
-            - `nanopi-r2c-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`
+            **Image:** `nanopi-r2c-arch-*.img.xz` — stock Arch Linux ARM `linux-aarch64` (includes Motorcomm YT8521S WAN PHY driver)
 
             **Flash:** confirm the SD card with `lsblk`, then replace `/dev/sdX`:
 
@@ -224,7 +211,7 @@ jobs:
 
             Arch Linux ARM rootfs MD5: `${{ steps.arch_md5.outputs.value }}`
 
-            **Included:** LICENSE, LICENSE_GPL-2.0-or-later.txt, NOTICE, LICENSE_TFA.txt, SOURCE_INFO_TFA.txt, SOURCE_OFFER_U_BOOT.txt, SOURCE_INFO_R2C_KERNEL.txt
+            **Included:** LICENSE, LICENSE_GPL-2.0-or-later.txt, NOTICE, LICENSE_TFA.txt, SOURCE_INFO_TFA.txt, SOURCE_OFFER_U_BOOT.txt
           files: |
             output/*.img.xz
             output/SHA256SUMS
