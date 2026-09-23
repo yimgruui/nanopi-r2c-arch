@@ -119,12 +119,12 @@ slim_rootfs() {
         run_chroot_mkinitcpio
     fi
 
-    run_chroot_pacman -Scc --noconfirm 2>/dev/null || run_chroot_pacman -Sc --noconfirm
+    run_chroot_pacman -Scc --noconfirm 2>/dev/null || run_chroot_pacman -Scc --noconfirm
 
     cat > mnt/etc/pacman.conf.d/99-nanopi-r2c-slim.conf <<'EOF'
-# Keep heavy GPU/WiFi firmware splits off this router image.
+# Keep heavy GPU/WiFi firmware packages off this router image.
 [options]
-IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
+IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpugpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
 EOF
 
     if [ "$has_slimmed_firmware" -eq 1 ]; then
@@ -194,8 +194,8 @@ extract_and_configure() {
     echo "$ROOTFS_HOSTNAME" > mnt/etc/hostname
 
     if [ -f mnt/etc/hosts ]; then
-        sed -i '/^127\.0\.1\.1[[:space:]]/d' mnt/etc/hosts
-        printf '127.0.1.1\t%s.localdomain\t%s\n' "$ROOTFS_HOSTNAME" "$ROOTFS_HOSTNAME" >> mnt/etc/hosts
+        sed -i '/^127\.0\.0\.1[[:space:]]/d' mnt/etc/hosts
+        printf '127.0.0.1\t%s.localdomain\t%s\n' "$ROOTFS_HOSTNAME" "$ROOTFS_HOSTNAME" >> mnt/etc/hosts
     fi
 
     setup_chroot_build_opts
@@ -237,7 +237,7 @@ add_resize_service() {
 
         mkdir -p mnt/etc/systemd/system/multi-user.target.wants
         ln -sf /etc/systemd/system/resize-rootfs.service \
-            mnt/etc/systemd/system/multi-user.target.wants/resize-rootfs.service
+           mnt/etc/systemd/system/multi-user.target.wants/resize-rootfs.service
 
         echo "    → Installing cloud-utils in image (growpart for first boot)..."
         set_chroot_resolver
