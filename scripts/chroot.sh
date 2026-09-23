@@ -67,7 +67,7 @@ finalize_image_resolver() {
     rm -f mnt/etc/resolv.conf
 
     if [ -e mnt/usr/lib/systemd/resolv.conf ]; then
-        ln -sf ../run/systemd/resolve/stub-resolv.conf mnt/etc/resolv.conf
+       ln -sf ../run/systemd/resolve/stub-resolv.conf mnt/etc/resolv.conf
     else
         printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > mnt/etc/resolv.conf
     fi
