@@ -76,6 +76,34 @@ download_and_verify_rootfs() {
     verify_arch_rootfs_md5 "$tarball" "$expected"
 }
 
+verify_stock_kernel_r2c() {
+    # The NanoPi R2C's on-board WAN PHY is a Motorcomm YT8521S; it needs the
+    # motorcomm PHY driver (CONFIG_MOTORCOMM_PHY, module or built-in). Without
+    # it the WAN port will never link up — refuse to build such an image.
+    local kver
+    kver=$(get_chroot_latest_kver)
+    [ -n "$kver" ] || {
+        echo "Error: no kernel modules found in rootfs" >&2
+        exit 1
+    }
+
+    if ls "mnt/usr/lib/modules/$kver"/kernel/drivers/net/phy/motorcomm.ko* >/dev/null 2>&1; then
+        echo "    → Stock kernel has Motorcomm PHY driver (module: motorcomm.ko) — WAN OK"
+        return 0
+    fi
+
+    if grep -qs 'drivers/net/phy/motorcomm' "mnt/usr/lib/modules/$kver/modules.builtin"; then
+        echo "    → Stock kernel has Motorcomm PHY driver (built-in) — WAN OK"
+        return 0
+    fi
+
+    echo "Error: stock linux-aarch64 kernel lacks the Motorcomm PHY driver (CONFIG_MOTORCOMM_PHY)." >&2
+    echo "The NanoPi R2C WAN port (YT8521S PHY) will not work without it." >&2
+    echo "Inspect the package:  tar -xOf linux-aarch64-*.pkg.tar.zst usr/lib/modules/*/modules.builtin | grep -i motorcomm" >&2
+    echo "On a running board:   ls /sys/bus/mdio_bus/drivers/   (expect a YT8521 entry)" >&2
+    exit 1
+}
+
 slim_rootfs() {
     if [ "$SHOULD_SKIP_SLIM" = "1" ]; then
         echo "    → Skipping firmware slim (SHOULD_SKIP_SLIM=1)"
@@ -124,7 +152,7 @@ slim_rootfs() {
     cat > mnt/etc/pacman.conf.d/99-nanopi-r2c-slim.conf <<'EOF'
 # Keep heavy GPU/WiFi firmware packages off this router image.
 [options]
-IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpugpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
+IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
 EOF
 
     if [ "$has_slimmed_firmware" -eq 1 ]; then
@@ -202,12 +230,8 @@ extract_and_configure() {
     run_arch_chroot pacman-key --init
     run_arch_chroot pacman-key --populate archlinuxarm
 
-    configure_kernel_variant
+    verify_stock_kernel_r2c
     prepare_mkinitcpio_chroot
-
-    if [ "$KERNEL_VARIANT" = "minimal" ]; then
-        run_chroot_mkinitcpio
-    fi
 
     slim_rootfs
 
