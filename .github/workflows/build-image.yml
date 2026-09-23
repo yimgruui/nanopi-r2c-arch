@@ -113,7 +113,7 @@ jobs:
           }
 
           build_image_variant stock
-          build_image_variant minimal
+          #build_image_variant minimal
         env:
           CI: "1"
           CACHE_DIR: cache
