@@ -6,46 +6,26 @@
 # (the default build targets inverted polarity, the common 2-wire fan case).
 FAN_CONTROL_EXTRAFLAGS="${FAN_CONTROL_EXTRAFLAGS:-}"
 
-enable_fan_pwm0() {
-    # Ensure the NanoPi R2C dtb exposes pwm0 (RK3328 node /pwm@ff1b0000) so
-    # fan-monitor can drive /sys/class/pwm/pwmchip0/pwm0. Patches the dtb
-    # in place inside the image — no kernel package changes required.
-    local dtb="$1" status pinph
-
+verify_fan_pwm0() {
+    # fan-monitor drives /sys/class/pwm/pwmchip0/pwm0; the NanoPi R2C dtb must
+    # enable pwm0 (RK3328 node /pwm@ff1b0000). We deliberately do NOT patch the
+    # dtb in the build: fdtput-patching broke boot on this image. Without pwm0
+    # the fan-monitor service simply fails at runtime, which does not affect
+    # system boot.
+    local dtb="$1" status
     status=$(fdtget -t s "$dtb" /pwm@ff1b0000 status 2>/dev/null || echo "")
-
     if [ "$status" = "okay" ]; then
-        echo "    -> dtb already enables pwm0"
-        return 0
+        echo "    -> dtb enables pwm0 - fan control ready"
+    else
+        echo "       Note: dtb leaves pwm0 '${status:-absent}'; fan-monitor will not run" >&2
+        echo "             until pwm0 is enabled in the dtb (future validated dtb work)." >&2
     fi
-
-    echo "    -> Enabling pwm0 in dtb (was '${status:-absent}')..."
-
-    fdtput -t s "$dtb" /pwm@ff1b0000 status okay || {
-        echo "Error: fdtput failed on $dtb (/pwm@ff1b0000 status)" >&2
-        exit 1
-    }
-
-    # rk3328.dtsi keeps pinctrl-0 on disabled nodes; if this node lacks it,
-    # restore the pinmux from the pwm0-pin pinctrl entry.
-    if ! fdtget "$dtb" /pwm@ff1b0000 pinctrl-0 >/dev/null 2>&1; then
-        pinph=$(fdtget "$dtb" /pinctrl/pwm0/pwm0-pin 2>/dev/null || echo "")
-        if [ -n "$pinph" ]; then
-            fdtput -t x "$dtb" /pwm@ff1b0000 pinctrl-0 "$pinph"
-            echo "       pinctrl-0 restored (pwm0-pin phandle $pinph)"
-        else
-            echo "       Warning: /pwm@ff1b0000 lacks pinctrl-0 and pwm0-pin was not found;" >&2
-            echo "               pwm signal may not reach the pin." >&2
-        fi
-    fi
-
-    echo "       pwm0 enabled in $dtb"
 }
 
 install_fan_control() {
     echo "    -> Installing fan speed control (fan-monitor64)..."
 
-    enable_fan_pwm0 "mnt/boot/dtbs/$BOOT_DTB"
+    verify_fan_pwm0 "mnt/boot/dtbs/$BOOT_DTB"
 
     local tmpdir
     tmpdir=$(mktemp -d)
