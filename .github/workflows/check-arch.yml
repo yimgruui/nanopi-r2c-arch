@@ -1,49 +1,83 @@
-name: Check Arch rootfs update
+name: Check for new Arch release
 
 on:
   schedule:
-    - cron: '15 8,20 * * *'
+    - cron: '0 8,20 * * *'
   workflow_dispatch:
+    inputs:
+      should_force_build:
+        description: Trigger image build even if rootfs MD5 is unchanged
+        type: boolean
+        default: false
 
 permissions:
-  actions: write
   contents: read
+  actions: write
+
+env:
+  ARCH_ROOTFS_MD5_URL: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
 
 jobs:
-  check:
+  poll:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Fetch current Arch rootfs MD5
-        id: current
+      - id: current_md5
         run: |
-          md5=$(curl -fsSL http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5 | awk '{print $1}')
-          [ -n "$md5" ] || { echo "Error: could not fetch rootfs md5" >&2; exit 1; }
-          echo "md5=$md5" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
 
-      - name: Compare with recorded MD5
-        id: compare
-        run: |
-          prev=$(cat .arch-rootfs-md5 2>/dev/null || echo "")
-          cur="${{ steps.current.outputs.md5 }}"
-          echo "recorded=$prev" >> "$GITHUB_OUTPUT"
-          if [ "$prev" = "$cur" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Arch rootfs unchanged ($cur)"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Arch rootfs changed: '${prev:-none}' -> '$cur'"
+          CURRENT=$(curl -fsSL "$ARCH_ROOTFS_MD5_URL" | awk '{print $1}')
+
+          if [ -z "$CURRENT" ]; then
+            echo "Error: could not read Arch Linux ARM rootfs MD5" >&2
+            exit 1
           fi
 
-      - name: Trigger build
-        if: steps.compare.outputs.changed == 'true'
+          echo "value=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v5
+        with:
+          path: arch-state
+          key: arch-md5-state-${{ steps.current_md5.outputs.value }}
+          restore-keys: |
+            arch-md5-state-
+
+      - id: arch_md5
+        run: |
+          set -euo pipefail
+
+          CURRENT="${{ steps.current_md5.outputs.value }}"
+          STORED=$(cat arch-state/last_md5.txt 2>/dev/null || true)
+
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "stored=$STORED" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT" != "$STORED" ]; then
+            echo "has_changed=true" >> "$GITHUB_OUTPUT"
+            echo "Arch rootfs MD5 changed: ${STORED:-<none>} -> $CURRENT"
+          else
+            echo "has_changed=false" >> "$GITHUB_OUTPUT"
+            echo "Arch rootfs MD5 unchanged: $CURRENT"
+          fi
+
+      - name: Record MD5 after change
+        if: steps.arch_md5.outputs.has_changed == 'true'
+        run: |
+          mkdir -p arch-state
+          echo "${{ steps.arch_md5.outputs.current }}" > arch-state/last_md5.txt
+
+      - uses: actions/cache/save@v5
+        if: steps.arch_md5.outputs.has_changed == 'true'
+        with:
+          path: arch-state
+          key: arch-md5-state-${{ steps.arch_md5.outputs.current }}
+
+      - name: Trigger image build
+        if: steps.arch_md5.outputs.has_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.should_force_build)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh workflow run build-image.yml \
             --repo "${{ github.repository }}" \
-            --ref "${{ github.event.repository.default_branch }}"
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
+            -f "should_publish_release=true"
