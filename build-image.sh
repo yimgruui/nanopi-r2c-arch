@@ -14,6 +14,7 @@ sed -i 's/\r$//' "$SCRIPT_DIR"/*.sh "$SCRIPTS_DIR"/*.sh 2>/dev/null || true
 
 source "$SCRIPTS_DIR/common.sh"
 source "$SCRIPTS_DIR/chroot.sh"
+source "$SCRIPTS_DIR/kernel.sh"
 source "$SCRIPTS_DIR/trusted-firmware.sh"
 source "$SCRIPTS_DIR/bootloader.sh"
 source "$SCRIPTS_DIR/rootfs.sh"
