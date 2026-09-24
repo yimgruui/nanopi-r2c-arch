@@ -230,7 +230,12 @@ extract_and_configure() {
     run_arch_chroot pacman-key --init
     run_arch_chroot pacman-key --populate archlinuxarm
 
-    verify_stock_kernel_r2c
+    configure_kernel_variant
+    prepare_mkinitcpio_chroot
+
+    if [ "$KERNEL_VARIANT" = "minimal" ]; then
+        run_chroot_mkinitcpio
+    fi
     install_fan_control
     prepare_mkinitcpio_chroot
 
