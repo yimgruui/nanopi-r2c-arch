@@ -20,7 +20,15 @@ UBOOT_GIT_URL="${UBOOT_GIT_URL:-https://source.denx.de/u-boot/u-boot.git}"
 UBOOT_TAG="${UBOOT_TAG:-v2026.04}"
 UBOOT_COMMIT="${UBOOT_COMMIT:-88dc2788777babfd6322fa655df549a019aa1e69}"
 
-IMAGE_PREFIX="nanopi-r2c-arch"
+KERNEL_VARIANT="${KERNEL_VARIANT:-stock}"
+case "$KERNEL_VARIANT" in
+    stock) IMAGE_PREFIX="nanopi-r2c-arch" ;;
+    minimal) IMAGE_PREFIX="nanopi-r2c-arch-minimal-kernel" ;;
+    *)
+        echo "Error: KERNEL_VARIANT must be stock or minimal" >&2
+        exit 1
+        ;;
+esac
 IMAGE_NAME="${IMAGE_NAME:-${IMAGE_PREFIX}-$(date +%Y-%m-%d).img}"
 # GitHub release assets must be < 2^31 bytes; 2G is exactly at the limit and upload fails.
 IMAGE_SIZE="${IMAGE_SIZE:-1900M}"
