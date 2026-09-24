@@ -93,6 +93,10 @@ Options:
 Environment:
   IMAGE_SIZE             Default: 1900M
   ROOTFS_HOSTNAME        Default: nanopi-r2c (image /etc/hostname)
+  KERNEL_VARIANT          Default: stock (stock|minimal)
+  R2C_KERNEL_REPO_URL    Minimal-kernel pacman repo URL (required for minimal)
+  R2C_KERNEL_KEY_FPR     Minimal-kernel repo key fingerprint (required for minimal)
+  R2C_KERNEL_PKGVER      Optional minimal-kernel package version pin
 
 Run as root: sudo $(basename "${BUILD_SCRIPT:-build-image.sh}")
 EOF
