@@ -21,6 +21,7 @@ concurrency:
 
 env:
   ARCH_ROOTFS_MD5_URL: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
+  TZ: Asia/Shanghai
 
 jobs:
   build:
