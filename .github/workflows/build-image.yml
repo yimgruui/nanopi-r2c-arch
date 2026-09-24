@@ -181,6 +181,7 @@ jobs:
           set -euo pipefail
           cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
             SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
+          test -f output/SOURCE_INFO_R2C_KERNEL.txt
 
       - name: Upload build artifact
         if: env.ACT != 'true'
@@ -196,6 +197,7 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
+            output/SOURCE_INFO_R2C_KERNEL.txt
           if-no-files-found: error
           compression-level: 0
 
@@ -211,7 +213,9 @@ jobs:
           body: |
             **Verify:** `sha256sum -c SHA256SUMS`
 
-            **Image:** `nanopi-r2c-arch-*.img.xz` — stock Arch Linux ARM `linux-aarch64` (includes Motorcomm YT8521S WAN PHY driver)
+            - `nanopi-r2c-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`
+            
+            - `nanopi-r2c-arch-minimal-kernel-*.img.xz`: `linux-nanopi-r2c-minimal` from `nanopi-r2c-kernel-arch`
 
             **Flash:** confirm the SD card with `lsblk`, then replace `/dev/sdX`:
 
@@ -231,3 +235,4 @@ jobs:
             output/LICENSE_TFA.txt
             output/SOURCE_INFO_TFA.txt
             output/SOURCE_OFFER_U_BOOT.txt
+            output/SOURCE_INFO_R2C_KERNEL.txt
