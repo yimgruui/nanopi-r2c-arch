@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "$BUILD_SCRIPT")" && pwd)"
 SCRIPTS_DIR="$SCRIPT_DIR/scripts"
 TEMPLATES_DIR="$SCRIPTS_DIR/templates"
 
+sed -i 's/\r$//' "$SCRIPT_DIR"/*.sh "$SCRIPTS_DIR"/*.sh 2>/dev/null || true
+
 source "$SCRIPTS_DIR/common.sh"
 source "$SCRIPTS_DIR/chroot.sh"
 source "$SCRIPTS_DIR/trusted-firmware.sh"
