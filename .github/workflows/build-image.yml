@@ -100,23 +100,6 @@ jobs:
           /usr/lib/systemd/systemd-binfmt
           test -f /proc/sys/fs/binfmt_misc/qemu-aarch64
 
-      - name: Pin host Python to 3.13 (U-Boot pylibfdf vs 3.14)
-        run: |
-          set -euo pipefail
-          # Newest python 3.13 from the Arch Linux Archive
-          pkg=$(curl -fsSL https://archive.archlinux.org/packages/p/python/ \
-                | grep -oE 'python-3\.13\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst' \
-                | sort -V | tail -1)
-          [ -n "$pkg" ] || { echo "Error: no python 3.13 in archive" >&2; exit 1; }
-          echo "Downgrading to $pkg"
-          curl -fsSLO "https://archive.archlinux.org/packages/p/python/$pkg"
-          pacman -Udd --noconfirm "$pkg"
-          python3 --version
-          # pyelftools for the pinned interpreter (pacman's python-pyelftools targets 3.14)
-          rm -f /usr/lib/python3.13/EXTERNALLY-MANAGED
-          python3 -m ensurepip
-          python3 -m pip install setuptools pyelftools
-
       - name: Build image
         run: |
           set -euo pipefail
