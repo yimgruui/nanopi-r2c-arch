@@ -103,13 +103,17 @@ jobs:
       - name: Build image
         run: |
           set -euo pipefail
-          rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES
-          if ! ./build-image.sh; then
-            echo "===== pylibfdt verbose rebuild for diagnostics ====="
-            ( cd cache/u-boot && python3 -V && ls -la scripts/dtc/pylibfdt/ && \
-              make O="$OLDPWD/cache/u-boot-build" scripts/dtc/pylibfdt V=1 ) || true
-            exit 1
-          fi
+          rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES \
+            output/SOURCE_INFO_R2C_KERNEL.txt
+
+          build_image_variant() {
+            local variant="$1"
+            echo "==> Building ${variant} image"
+            KERNEL_VARIANT="$variant" ./build-image.sh
+          }
+
+          build_image_variant stock
+          build_image_variant minimal
         env:
           CI: "1"
           CACHE_DIR: cache
@@ -118,6 +122,8 @@ jobs:
           IMAGE_SIZE: 1900M
           SHOULD_SKIP_TFA_REBUILD: "1"
           SHOULD_SKIP_UBOOT_REBUILD: "1"
+          R2C_KERNEL_REPO_URL: ${{ vars.R2C_KERNEL_REPO_URL }}
+          R2C_KERNEL_KEY_FPR: ${{ secrets.R2C_KERNEL_KEY_FPR }}
 
       - name: List images
         run: |
