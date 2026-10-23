@@ -196,6 +196,21 @@ install_led_service() {
         mnt/etc/systemd/system/multi-user.target.wants/nanopi-r2c-leds.service
 }
 
+configure_timezone_and_locale() {
+    echo "    → Configuring timezone (Asia/Shanghai) and UTF-8 locale..."
+
+    # --- 默认时区：上海 ---
+    ln -sf /usr/share/zoneinfo/Asia/Shanghai mnt/etc/localtime
+    echo "Asia/Shanghai" > mnt/etc/timezone
+
+    # --- 默认 locale：启用 en_US.UTF-8 与 zh_CN.UTF-8，系统默认 en_US.UTF-8 ---
+    if [ -f mnt/etc/locale.gen ]; then
+        sed -i 's/^#\s*en_US\.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' mnt/etc/locale.gen
+        sed -i 's/^#\s*zh_CN\.UTF-8 UTF-8/zh_CN.UTF-8 UTF-8/' mnt/etc/locale.gen
+    fi
+    echo 'LANG=en_US.UTF-8' > mnt/etc/locale.conf
+}
+
 extract_and_configure() {
     local tarball="$ROOTFS_CACHE/${ARCH_IMAGE}.tar.gz"
     local boot_cmd="$TEMPLATES_DIR/boot.cmd"
@@ -219,6 +234,8 @@ extract_and_configure() {
     mount_chroot_root
     ensure_cross_chroot_binfmt
 
+    configure_timezone_and_locale
+
     echo "$ROOTFS_HOSTNAME" > mnt/etc/hostname
 
     if [ -f mnt/etc/hosts ]; then
@@ -229,6 +246,11 @@ extract_and_configure() {
     setup_chroot_build_opts
     run_arch_chroot pacman-key --init
     run_arch_chroot pacman-key --populate archlinuxarm
+
+    # 生成已启用的 UTF-8 locale
+    if [ -f mnt/etc/locale.gen ]; then
+        run_arch_chroot locale-gen
+    fi
 
     configure_kernel_variant
     prepare_mkinitcpio_chroot
