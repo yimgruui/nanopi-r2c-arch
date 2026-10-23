@@ -81,3 +81,11 @@ jobs:
             --ref "${{ github.event.repository.default_branch }}" \
             -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
             -f "should_publish_release=true"
+
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@v2.1.0
+        with:
+          retain_days: 0
+          keep_minimum_runs: 3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
