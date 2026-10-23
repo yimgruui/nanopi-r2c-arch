@@ -211,6 +211,33 @@ configure_timezone_and_locale() {
     echo 'LANG=en_US.UTF-8' > mnt/etc/locale.conf
 }
 
+configure_zram() {
+    echo "    → Installing and configuring zram (zram-generator)..."
+
+    # 1. 安装 zram-generator
+    set_chroot_resolver
+    if ! run_chroot_pacman -S --noconfirm zram-generator; then
+        echo "       Error: zram-generator install failed" >&2
+        return 1
+    fi
+
+    # 2. 写入 zram 配置：lz4 算法，大小为内存一半（1GB 设备即 512MiB）
+    cat > mnt/etc/systemd/zram-generator.conf <<'EOF'
+[zram0]
+zram-size = ram / 2
+compression-algorithm = lz4
+swap-priority = 100
+EOF
+
+    # 3. 调整 swappiness，让内核更积极地使用 zram 交换
+    install -d -m 0755 mnt/etc/sysctl.d
+    cat > mnt/etc/sysctl.d/99-zram-swappiness.conf <<'EOF'
+vm.swappiness = 100
+EOF
+
+    echo "       zram configured (lz4, ram/2, swap-priority=100, swappiness=100)"
+}
+
 extract_and_configure() {
     local tarball="$ROOTFS_CACHE/${ARCH_IMAGE}.tar.gz"
     local boot_cmd="$TEMPLATES_DIR/boot.cmd"
@@ -260,6 +287,9 @@ extract_and_configure() {
     fi
     install_fan_control
     prepare_mkinitcpio_chroot
+
+    # 安装并配置 zram，确保在 slim 清理之前完成
+    configure_zram
 
     slim_rootfs
 
