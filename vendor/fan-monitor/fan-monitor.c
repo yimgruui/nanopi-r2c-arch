@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 #include <unistd.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -30,17 +31,47 @@
 #define PWM0_OFF 0
 #define PWM0_ON !PWM0_OFF
 /*
+ * Kernel 5.x+
  *
- * Kernel 5.x
- *
-*/
-#define UNEXPORT_PWM0_PATH  "/sys/class/pwm/pwmchip0/unexport"
-#define EXPORT_PWM0_PATH    "/sys/class/pwm/pwmchip0/export"
-#define PWM0_PATH           "/sys/class/pwm/pwmchip0/pwm0"
-#define ENABLE_PWM0_PATH    "/sys/class/pwm/pwmchip0/pwm0/enable"
-#define POLARITY_PWM0_PATH  "/sys/class/pwm/pwmchip0/pwm0/polarity"
-#define DUTY_PWM0_PATH      "/sys/class/pwm/pwmchip0/pwm0/duty_cycle"
-#define PERIOD_PWM0_PATH    "/sys/class/pwm/pwmchip0/pwm0/period"
+ * The PWM controller and channel are not fixed: the NanoPi R2 family routes
+ * the fan to PWM2 in the mainline device tree, while older vendor kernels
+ * exposed it as pwmchip0/pwm0. The start wrapper picks the controller whose
+ * device-tree node is enabled and passes it in via the environment; --chip
+ * and --channel override it for manual runs.
+ */
+static char pwm_chip_dir[128];
+static char pwm_dev_dir[160];
+
+static void pwm_paths_init(void)
+{
+    const char *chip = getenv("FAN_PWM_CHIP");
+    const char *chan = getenv("FAN_PWM_CHANNEL");
+
+    if (!chip || !*chip)
+        chip = "0";
+    if (!chan || !*chan)
+        chan = "0";
+
+    snprintf(pwm_chip_dir, sizeof(pwm_chip_dir), "/sys/class/pwm/pwmchip%s", chip);
+    snprintf(pwm_dev_dir, sizeof(pwm_dev_dir), "%s/pwm%s", pwm_chip_dir, chan);
+}
+
+static const char *pwm_chip_file(const char *name)
+{
+    static char path[192];
+
+    snprintf(path, sizeof(path), "%s/%s", pwm_chip_dir, name);
+    return path;
+}
+
+static const char *pwm_dev_file(const char *name)
+{
+    static char path[192];
+
+    snprintf(path, sizeof(path), "%s/%s", pwm_dev_dir, name);
+    return path;
+}
+
 #define CPU_TEMP_PATH       "/sys/class/thermal/thermal_zone0/temp"
 #define PWM0_PID            "/var/run/fan-monitor.pid"
 
@@ -82,7 +113,7 @@ int Find_pwm0(void)
 {
     int fh;
 
-    fh = open(EXPORT_PWM0_PATH, O_RDONLY);
+    fh = open(pwm_chip_file("export"), O_RDONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 available ---\n");
@@ -99,7 +130,7 @@ int Export_pwm0(void)
     int fh, ret;
     ssize_t len;
 
-    fh = open(EXPORT_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_chip_file("export"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 available ---\n");
@@ -126,7 +157,7 @@ int UnExport_pwm0(void)
     // char fbuf[64];
     ssize_t len;
 
-    fh = open(UNEXPORT_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_chip_file("unexport"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No unexport available ---\n");
@@ -156,7 +187,7 @@ int Write_pwm0_period(int period)
 
     sprintf(buf, "%d", period);
 
-    fh = open(PERIOD_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_dev_file("period"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 period available ---\n");
@@ -185,7 +216,7 @@ int Write_pwm0_duty_cycle(int duty_cycle)
 
     sprintf(buf, "%d", duty_cycle);
 
-    fh = open(DUTY_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_dev_file("duty_cycle"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 duty_cycle available ---\n");
@@ -214,7 +245,7 @@ int Write_pwm0_enable(int enable)
 
     sprintf(buf, "%d", enable);
 
-    fh = open(ENABLE_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_dev_file("enable"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 period available ---\n");
@@ -247,7 +278,7 @@ int Write_pwm0_polarity(int polarity)
 
     sprintf(buf, "%s", pol[polarity]);
 
-    fh = open(POLARITY_PWM0_PATH, O_WRONLY);
+    fh = open(pwm_dev_file("polarity"), O_WRONLY);
     if (fh < 0) {
 #ifdef _DEBUG
         printf("--- No pwm0 polarity available ---\n");
@@ -299,8 +330,10 @@ int Read_CpuTemp(void)
 
 void usage(char *appname)
 {
-    fprintf(stderr, "\nUsage: %s [-debug]\n\n", appname);
-    fprintf(stderr, "  -debug  Defines the file to debug.\n");
+    fprintf(stderr, "\nUsage: %s [-debug] [--chip N] [--channel N]\n\n", appname);
+    fprintf(stderr, "  -debug    Verbose output.\n");
+    fprintf(stderr, "  --chip    PWM controller index (default: $FAN_PWM_CHIP or 0).\n");
+    fprintf(stderr, "  --channel PWM channel index (default: $FAN_PWM_CHANNEL or 0).\n");
     fprintf(stderr, "\nFor more information please visit https://github.com/avafinger/fan-monitor\n\n");
 
     exit(1);
@@ -424,11 +457,11 @@ int main(int argc, char **argv)
     if (argc > 1) {
         for (i = 1; i < argc; i++) {
             if (strcasecmp(argv[i], "-debug") == 0) {
-                if ((i + i) == argc) {
-                    usage(argv[0]);
-                    return 1;
-                }
-                i++;
+                continue;
+            } else if (strcasecmp(argv[i], "--chip") == 0 && i + 1 < argc) {
+                setenv("FAN_PWM_CHIP", argv[++i], 1);
+            } else if (strcasecmp(argv[i], "--channel") == 0 && i + 1 < argc) {
+                setenv("FAN_PWM_CHANNEL", argv[++i], 1);
             } else {
                 usage(argv[0]);
                 return 1;
@@ -436,16 +469,30 @@ int main(int argc, char **argv)
         }
     }
 
+    pwm_paths_init();
+
     local = 0;
 #ifdef _DEBUG
     printf("Debug mode!\n");
 #endif
 
-    fd = open(PWM0_PID, O_RDWR, S_IRUSR | S_IWUSR);
+    fd = open(PWM0_PID, O_RDONLY);
     if (fd != -1) {
+        char pidbuf[32];
+        ssize_t n = read(fd, pidbuf, sizeof(pidbuf) - 1);
+        long oldpid = -1;
+
         close(fd);
-        perror("Already running\n");
-        exit(1);
+        if (n > 0) {
+            pidbuf[n] = '\0';
+            oldpid = strtol(pidbuf, NULL, 10);
+        }
+        if (oldpid > 0 && kill((pid_t) oldpid, 0) == 0) {
+            fprintf(stderr, "Already running (pid %ld)\n", oldpid);
+            exit(1);
+        }
+        /* Stale PID file from a previous crash: drop it and continue. */
+        unlink(PWM0_PID);
     }
 
     ret = UnExport_pwm0();

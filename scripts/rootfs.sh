@@ -149,11 +149,14 @@ slim_rootfs() {
 
     run_chroot_pacman -Scc --noconfirm 2>/dev/null || run_chroot_pacman -Scc --noconfirm
 
-    cat > mnt/etc/pacman.conf.d/99-nanopi-r2c-slim.conf <<'EOF'
+    # pacman does not read /etc/pacman.conf.d; include a real options file so
+    # the firmware slim-down survives future `pacman -Syu` on the device.
+    install -d -m 0755 mnt/etc/pacman.d
+    cat > mnt/etc/pacman.d/nanopi-r2c-slim.conf <<'EOF'
 # Keep heavy GPU/WiFi firmware packages off this router image.
-[options]
 IgnorePkg = linux-firmware linux-firmware-nvidia linux-firmware-amdgpu linux-firmware-radeon linux-firmware-intel linux-firmware-mediatek linux-firmware-broadcom linux-firmware-atheros linux-firmware-cirrus
 EOF
+    pacman_conf_add_include "/etc/pacman.d/nanopi-r2c-slim.conf"
 
     if [ "$has_slimmed_firmware" -eq 1 ]; then
         echo "       firmware slim OK (realtek + whence)"
@@ -166,7 +169,7 @@ verify_boot_files() {
     local missing=()
     local f
 
-    for f in boot/Image boot/initramfs-linux.img boot/uInitrd boot/boot.scr \
+    for f in boot/Image boot/initramfs-linux.img boot/boot.scr \
              "boot/dtbs/$BOOT_DTB"; do
         [ -f "mnt/$f" ] || missing+=("$f")
     done
@@ -211,12 +214,47 @@ configure_timezone_and_locale() {
     echo 'LANG=en_US.UTF-8' > mnt/etc/locale.conf
 }
 
+install_network_config() {
+    echo "    → Configuring DHCP on both Ethernet ports (systemd-networkd)..."
+
+    install -d -m 0755 mnt/etc/systemd/network
+
+    cat > mnt/etc/systemd/network/10-wan.network <<'EOF'
+# WAN: RK3328 GMAC with the Motorcomm YT8521S PHY (NanoPi R2C).
+[Match]
+Driver=rk_gmac-dwmac
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes
+EOF
+
+    cat > mnt/etc/systemd/network/20-lan.network <<'EOF'
+# LAN: RTL8153 USB Ethernet controller (r8152).
+[Match]
+Driver=r8152
+
+[Network]
+DHCP=yes
+IPv6AcceptRA=yes
+EOF
+
+    run_arch_chroot systemctl enable systemd-networkd.service systemd-resolved.service
+
+    # These would race systemd-networkd for the same links.
+    run_arch_chroot systemctl disable dhcpcd.service NetworkManager.service >/dev/null 2>&1 || true
+}
+
 configure_zram() {
     echo "    → Installing and configuring zram (zram-generator)..."
 
     # 1. 安装 zram-generator
     set_chroot_resolver
-    if ! run_chroot_pacman -S --noconfirm zram-generator; then
+    if ! run_chroot_pacman -Sy; then
+        echo "       Error: pacman -Sy failed, cannot install zram-generator" >&2
+        return 1
+    fi
+    if ! run_chroot_pacman -S --needed --noconfirm zram-generator; then
         echo "       Error: zram-generator install failed" >&2
         return 1
     fi
@@ -271,13 +309,20 @@ extract_and_configure() {
     fi
 
     setup_chroot_build_opts
+    prepare_mkinitcpio_chroot
     run_arch_chroot pacman-key --init
     run_arch_chroot pacman-key --populate archlinuxarm
+
+    configure_image_repos
+    install_archlinuxcn_keyring
+    system_upgrade
 
     # 生成已启用的 UTF-8 locale
     if [ -f mnt/etc/locale.gen ]; then
         run_arch_chroot locale-gen
     fi
+
+    install_network_config
 
     configure_kernel_variant
     prepare_mkinitcpio_chroot
@@ -291,11 +336,17 @@ extract_and_configure() {
     # 安装并配置 zram，确保在 slim 清理之前完成
     configure_zram
 
-    slim_rootfs
+    install_appliance_packages
+    install_aur_packages
+    configure_udevil
+    configure_default_editor
+    prune_packages
 
-    echo "    → Wrapping initramfs as uInitrd..."
-    "$UBOOT_BUILD_DIR/tools/mkimage" -A arm64 -O linux -T ramdisk -C none \
-        -n "Arch Linux ARM initramfs" -d mnt/boot/initramfs-linux.img mnt/boot/uInitrd
+    slim_rootfs
+    strip_image
+    verify_appliance_stack
+
+    verify_initramfs_boot_support
 
     echo "    → Installing boot.scr..."
     install -D -m 0644 "$boot_cmd" mnt/boot/boot.cmd
@@ -321,21 +372,16 @@ add_resize_service() {
         ln -sf /etc/systemd/system/resize-rootfs.service \
            mnt/etc/systemd/system/multi-user.target.wants/resize-rootfs.service
 
-        echo "    → Installing cloud-utils in image (growpart for first boot)..."
-        set_chroot_resolver
-        run_chroot_pacman -Sy
-
-        if ! run_chroot_pacman -S cloud-utils; then
-            echo "Error: cloud-utils install failed (required for first-boot growpart)" >&2
-            unmount_chroot_root
-            exit 1
-        fi
+        # parted is installed by install_appliance_packages(); no cloud-utils.
     else
         echo "[9/10] Skipping resize service"
     fi
 
     # Build-time copy only; do not ship the CI/host resolver config on the SD image.
     finalize_image_resolver
+
+    # Drop the build-only pacman options; the slim Include stays.
+    finalize_image_pacman
 
     unmount_chroot_root
     write_dir_to_image_partition "$img" mnt

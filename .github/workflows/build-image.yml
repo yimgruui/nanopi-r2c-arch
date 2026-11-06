@@ -26,6 +26,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     container:
       image: archlinux:latest
       options: --privileged
@@ -37,7 +38,6 @@ jobs:
           persist-credentials: false
 
       - id: arch_md5
-        if: env.ACT != 'true'
         run: |
           set -euo pipefail
 
@@ -53,7 +53,6 @@ jobs:
           echo "Arch rootfs cache key MD5: $MD5"
 
       - name: Cache U-Boot tree
-        if: env.ACT != 'true'
         id: cache_uboot
         uses: actions/cache@v5
         with:
@@ -63,7 +62,6 @@ jobs:
           key: uboot-${{ hashFiles('scripts/common.sh', 'scripts/bootloader.sh') }}
 
       - name: Cache TF-A tree
-        if: env.ACT != 'true'
         id: cache_tfa
         uses: actions/cache@v5
         with:
@@ -73,15 +71,20 @@ jobs:
           key: tfa-${{ hashFiles('scripts/common.sh', 'scripts/trusted-firmware.sh') }}
 
       - name: Cache rootfs tarball
-        if: env.ACT != 'true'
         id: cache_rootfs
         uses: actions/cache@v5
         with:
           path: cache/rootfs
           key: arch-rootfs-${{ steps.arch_md5.outputs.value }}
 
+      - name: Cache AUR packages
+        id: cache_aur
+        uses: actions/cache@v5
+        with:
+          path: cache/aur-packages
+          key: aur-${{ hashFiles('packaging/**/PKGBUILD') }}
+
       - name: Cache status
-        if: env.ACT != 'true'
         run: |
           echo "TF-A cache-hit: ${{ steps.cache_tfa.outputs.cache-hit }}"
           echo "u-boot cache-hit: ${{ steps.cache_uboot.outputs.cache-hit }}"
@@ -101,20 +104,30 @@ jobs:
           /usr/lib/systemd/systemd-binfmt
           test -f /proc/sys/fs/binfmt_misc/qemu-aarch64
 
-      - name: Build image
+      - name: Build stock image
         run: |
           set -euo pipefail
           rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES \
             output/SOURCE_INFO_R2C_KERNEL.txt
 
-          build_image_variant() {
-            local variant="$1"
-            echo "==> Building ${variant} image"
-            KERNEL_VARIANT="$variant" ./build-image.sh
-          }
+          echo "==> Building stock image"
+          KERNEL_VARIANT=stock ./build-image.sh
+        env:
+          CI: "1"
+          CACHE_DIR: cache
+          OUTPUT_DIR: output
+          ARCH_ROOTFS_MD5: ${{ steps.arch_md5.outputs.value }}
+          IMAGE_SIZE: 1900M
+          SHOULD_SKIP_TFA_REBUILD: "1"
+          SHOULD_SKIP_UBOOT_REBUILD: "1"
 
-          build_image_variant stock
-          build_image_variant minimal
+      - name: Build minimal-kernel image
+        id: minimal
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          echo "==> Building minimal-kernel image"
+          KERNEL_VARIANT=minimal ./build-image.sh
         env:
           CI: "1"
           CACHE_DIR: cache
@@ -125,6 +138,17 @@ jobs:
           SHOULD_SKIP_UBOOT_REBUILD: "1"
           R2C_KERNEL_REPO_URL: ${{ vars.R2C_KERNEL_REPO_URL }}
           R2C_KERNEL_KEY_FPR: ${{ secrets.R2C_KERNEL_KEY_FPR }}
+
+      - name: Minimal-kernel result
+        if: always()
+        run: |
+          if [ "${{ steps.minimal.outcome }}" != "success" ]; then
+            echo "::warning::minimal-kernel image failed; publishing the stock image only"
+            # A failed build can leave a raw image behind; never publish it.
+            rm -f output/nanopi-r2c-arch-minimal-kernel-*.img \
+              output/nanopi-r2c-arch-minimal-kernel-*.img.xz \
+              output/SOURCE_INFO_R2C_KERNEL.txt
+          fi
 
       - name: List images
         run: |
@@ -182,28 +206,27 @@ jobs:
           set -euo pipefail
           cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
             SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
-          test -f output/SOURCE_INFO_R2C_KERNEL.txt
+          if [ -f output/SOURCE_INFO_R2C_KERNEL.txt ]; then
+            echo "Including minimal-kernel source information"
+          else
+            echo "::warning::no minimal-kernel image built; release lacks SOURCE_INFO_R2C_KERNEL.txt"
+          fi
 
       - name: Upload build artifact
-        if: env.ACT != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.release.outputs.base }}
           path: |
             output/*.img.xz
             output/SHA256SUMS
-            output/LICENSE
-            output/LICENSE_GPL-2.0-or-later.txt
+            output/LICENSE*
             output/NOTICE
-            output/LICENSE_TFA.txt
-            output/SOURCE_INFO_TFA.txt
-            output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            output/SOURCE_*
           if-no-files-found: error
           compression-level: 0
 
       - name: Publish GitHub Release
-        if: env.ACT != 'true' && inputs.should_publish_release
+        if: inputs.should_publish_release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release.outputs.tag }}
@@ -230,10 +253,6 @@ jobs:
           files: |
             output/*.img.xz
             output/SHA256SUMS
-            output/LICENSE
-            output/LICENSE_GPL-2.0-or-later.txt
+            output/LICENSE*
             output/NOTICE
-            output/LICENSE_TFA.txt
-            output/SOURCE_INFO_TFA.txt
-            output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            output/SOURCE_*

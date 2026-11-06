@@ -6,7 +6,7 @@ entirely covered by the GPL-2.0-or-later license of this repository's scripts.
 
 Release and CI artifact downloads include LICENSE, this NOTICE,
 LICENSE_GPL-2.0-or-later.txt, LICENSE_TFA.txt, SOURCE_INFO_TFA.txt,
-SOURCE_OFFER_U_BOOT.txt, and SOURCE_INFO_R2S_KERNEL.txt alongside the image.
+SOURCE_OFFER_U_BOOT.txt, and SOURCE_INFO_R2C_KERNEL.txt alongside the image.
 
 Components fetched or built at image-creation time include:
 
@@ -21,18 +21,18 @@ U-Boot (GPL-2.0-or-later)
 -------------------------
 - Source: https://source.denx.de/u-boot/u-boot.git
 - Tag: v2026.04 (commit 88dc2788777babfd6322fa655df549a019aa1e69, signed tag)
-- Built from source during image creation (nanopi-r2s-rk3328_defconfig)
+- Built from source during image creation (nanopi-r2c-rk3328_defconfig)
 - Produces the mainline Rockchip `u-boot-rockchip.bin` image used on the SD card
 - GPL source information: SOURCE_OFFER_U_BOOT.txt
 
-NanoPi R2S minimal kernel package (GPL-2.0-only)
+NanoPi R2C minimal kernel package (GPL-2.0-only)
 ------------------------------------------------
-- Package: linux-nanopi-r2s-minimal
-- Source/package repository: https://github.com/therealcoder1337/nanopi-r2s-kernel-arch
-- Used only by the `nanopi-r2s-arch-minimal-kernel-*` image variant
+- Package: linux-nanopi-r2c-minimal
+- Source/package repository: https://github.com/yimgruui/nanopi-r2c-kernel-arch
+- Used only by the `nanopi-r2c-arch-minimal-kernel-*` image variant
 - Source archive and merged kernel config are published with the matching
   kernel package release
-- Source information: SOURCE_INFO_R2S_KERNEL.txt
+- Source information: SOURCE_INFO_R2C_KERNEL.txt
 
 Arch Linux ARM root filesystem (mixed licenses)
 ------------------------------------------------

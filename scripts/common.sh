@@ -5,8 +5,12 @@
 : "${SCRIPTS_DIR:?SCRIPTS_DIR must be set before sourcing common.sh}"
 : "${TEMPLATES_DIR:?TEMPLATES_DIR must be set before sourcing common.sh}"
 
-CACHE_DIR="${CACHE_DIR:-$SCRIPT_DIR/cache}"
-OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/output}"
+# Root for all generated data (cache/, output/, and the staging mnt/ tree).
+# Point this at another filesystem (e.g. an external drive) to keep the
+# repository itself small and put every large write there.
+BUILD_ROOT="${BUILD_ROOT:-$SCRIPT_DIR}"
+CACHE_DIR="${CACHE_DIR:-$BUILD_ROOT/cache}"
+OUTPUT_DIR="${OUTPUT_DIR:-$BUILD_ROOT/output}"
 TFA_DIR="${TFA_DIR:-$CACHE_DIR/arm-trusted-firmware}"
 TFA_OUTPUT_DIR="${TFA_OUTPUT_DIR:-$CACHE_DIR/trusted-firmware}"
 UBOOT_DIR="${UBOOT_DIR:-$CACHE_DIR/u-boot}"
@@ -91,6 +95,8 @@ Options:
   -h, --help         Show this help
 
 Environment:
+  BUILD_ROOT             Where cache/, output/ and the staging mnt/ live
+                         (default: repository directory)
   IMAGE_SIZE             Default: 1900M
   ROOTFS_HOSTNAME        Default: nanopi-r2c (image /etc/hostname)
   KERNEL_VARIANT          Default: stock (stock|minimal)
@@ -131,7 +137,8 @@ check_dependencies() {
 }
 
 setup_directories() {
-    mkdir -p "$CACHE_DIR" "$OUTPUT_DIR" "$ROOTFS_CACHE" "$TFA_DIR" "$TFA_OUTPUT_DIR" "$UBOOT_DIR" "$UBOOT_BUILD_DIR"
+    mkdir -p "$BUILD_ROOT" "$CACHE_DIR" "$OUTPUT_DIR" "$ROOTFS_CACHE" "$TFA_DIR" "$TFA_OUTPUT_DIR" "$UBOOT_DIR" "$UBOOT_BUILD_DIR"
+    BUILD_ROOT="$(cd "$BUILD_ROOT" && pwd)"
     CACHE_DIR="$(cd "$CACHE_DIR" && pwd)"
     OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
     ROOTFS_CACHE="$(cd "$ROOTFS_CACHE" && pwd)"
@@ -143,7 +150,8 @@ setup_directories() {
     TFA_BL31="$TFA_OUTPUT_DIR/bl31-nanopi-r2c.elf"
     UBOOT_ROCKCHIP_BIN="$UBOOT_BUILD_DIR/u-boot-rockchip.bin"
 
-    cd "$SCRIPT_DIR"
+    echo "    Build root: $BUILD_ROOT"
+    cd "$BUILD_ROOT"
 }
 
 # Partition helpers — loop-free (Docker/act often lacks working /dev/loop*).

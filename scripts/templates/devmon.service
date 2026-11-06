@@ -1,0 +1,13 @@
+[Unit]
+Description=udevil devmon (auto-mount removable media as alarm)
+After=local-fs.target
+
+[Service]
+Type=simple
+User=alarm
+Group=alarm
+ExecStart=/usr/bin/devmon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -2,11 +2,11 @@ name: Check for new Arch release
 
 on:
   schedule:
-    - cron: '0 20 * * *'
+    - cron: '0 20 * * *' # 04:00 Asia/Shanghai
   workflow_dispatch:
     inputs:
       should_force_build:
-        description: Trigger image build even if rootfs MD5 is unchanged
+        description: Trigger an image build even if the rootfs MD5 is unchanged
         type: boolean
         default: false
 
@@ -14,78 +14,78 @@ permissions:
   contents: read
   actions: write
 
+concurrency:
+  group: check-arch
+  cancel-in-progress: false
+
 env:
   ARCH_ROOTFS_MD5_URL: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
 
 jobs:
   poll:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - id: current_md5
+      - name: Read current rootfs MD5
+        id: current_md5
         run: |
           set -euo pipefail
+          current=$(curl -fsSL "$ARCH_ROOTFS_MD5_URL" | awk '{print $1}')
+          [ -n "$current" ] || { echo "Error: could not read the ALARM rootfs MD5" >&2; exit 1; }
+          echo "value=$current" >> "$GITHUB_OUTPUT"
+          echo "Current ALARM rootfs MD5: $current"
 
-          CURRENT=$(curl -fsSL "$ARCH_ROOTFS_MD5_URL" | awk '{print $1}')
-
-          if [ -z "$CURRENT" ]; then
-            echo "Error: could not read Arch Linux ARM rootfs MD5" >&2
-            exit 1
-          fi
-
-          echo "value=$CURRENT" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache/restore@v5
+      - name: Restore last seen MD5
+        uses: actions/cache/restore@v5
         with:
           path: arch-state
           key: arch-md5-state-${{ steps.current_md5.outputs.value }}
           restore-keys: |
             arch-md5-state-
 
-      - id: arch_md5
+      - name: Compare with last seen MD5
+        id: arch_md5
         run: |
           set -euo pipefail
+          current="${{ steps.current_md5.outputs.value }}"
+          stored=$(cat arch-state/last_md5.txt 2>/dev/null || true)
 
-          CURRENT="${{ steps.current_md5.outputs.value }}"
-          STORED=$(cat arch-state/last_md5.txt 2>/dev/null || true)
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "stored=$stored" >> "$GITHUB_OUTPUT"
 
-          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
-          echo "stored=$STORED" >> "$GITHUB_OUTPUT"
-
-          if [ "$CURRENT" != "$STORED" ]; then
+          if [ "$current" != "$stored" ]; then
             echo "has_changed=true" >> "$GITHUB_OUTPUT"
-            echo "Arch rootfs MD5 changed: ${STORED:-<none>} -> $CURRENT"
+            echo "Rootfs MD5 changed: ${stored:-<none>} -> $current"
           else
             echo "has_changed=false" >> "$GITHUB_OUTPUT"
-            echo "Arch rootfs MD5 unchanged: $CURRENT"
+            echo "Rootfs MD5 unchanged: $current"
           fi
 
-      - name: Record MD5 after change
+      - name: Record new MD5
         if: steps.arch_md5.outputs.has_changed == 'true'
         run: |
           mkdir -p arch-state
           echo "${{ steps.arch_md5.outputs.current }}" > arch-state/last_md5.txt
-
-      - uses: actions/cache/save@v5
-        if: steps.arch_md5.outputs.has_changed == 'true'
-        with:
-          path: arch-state
-          key: arch-md5-state-${{ steps.arch_md5.outputs.current }}
 
       - name: Trigger image build
         if: steps.arch_md5.outputs.has_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.should_force_build)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           gh workflow run build-image.yml \
             --repo "${{ github.repository }}" \
             --ref "${{ github.event.repository.default_branch }}" \
             -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
             -f "should_publish_release=true"
+          echo "Triggered build for rootfs MD5 ${{ steps.arch_md5.outputs.current }}"
 
-      - name: Delete workflow runs
-        uses: Mattraks/delete-workflow-runs@v2.1.0
+      # Save only after a successful trigger so a failed trigger is retried the
+      # next day instead of being silently remembered.
+      - name: Save new MD5
+        if: steps.arch_md5.outputs.has_changed == 'true'
+        uses: actions/cache/save@v5
         with:
-          retain_days: 0
-          keep_minimum_runs: 3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: arch-state
+          key: arch-md5-state-${{ steps.arch_md5.outputs.current }}

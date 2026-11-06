@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Vendored from the AUR 'ksmbd-tools' package (Manuel Barrio Linares).
+
+pkgname=ksmbd-tools
+pkgver=3.5.7
+pkgrel=1
+pkgdesc="Userspace tools for the ksmbd kernel SMB server (NanoPi R2C build)"
+arch=('aarch64')
+url="https://github.com/cifsd-team/ksmbd-tools"
+license=('GPL-2.0-or-later')
+depends=('libnl' 'glib2' 'glibc' 'gcc-libs')
+provides=('samba')
+makedepends=('meson' 'ninja')
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/${pkgver}.tar.gz")
+sha256sums=('43f18da02499f3dd2c021255b95aa127e83254997502fcdcccb34053461effd1')
+
+build() {
+    cd "${pkgname}-${pkgver}"
+    arch-meson build --prefix=/usr --sbindir=/usr/bin \
+        --libexecdir=/usr/lib/${pkgname} --sysconfdir=/etc -Drundir=/run
+    meson compile -C build
+}
+
+package() {
+    cd "${pkgname}-${pkgver}"
+    DESTDIR="${pkgdir}" ninja -C build install
+}

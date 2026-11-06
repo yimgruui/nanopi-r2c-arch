@@ -1,31 +1,33 @@
-# NanoPi R2S Arch Linux ARM
+# NanoPi R2C Arch Linux ARM
 
-**Unofficial / community-maintained** Arch Linux ARM SD card images for **FriendlyElec NanoPi R2S** (RK3328).
+**Unofficial / community-maintained** Arch Linux ARM SD card images for the
+**FriendlyElec NanoPi R2C** (Rockchip RK3328, 1 GB DDR4), built as a small
+out-of-the-box NAS/router appliance.
 
-You can choose between a stock ALARM kernel image and a smaller image using [`linux-nanopi-r2s-minimal`](https://github.com/therealcoder1337/nanopi-r2s-kernel-arch).
+The NanoPi R2C is the cost-reduced NanoPi R2S: same SoC, one Gigabit WAN port
+driven by the RK3328 GMAC with a **Motorcomm YT8521S** PHY, and one Gigabit LAN
+port behind the **RTL8153** USB 3.0 controller. Only the WAN PHY differs from
+the R2S, which is why mainline keeps the shared `rk3328-nanopi-r2` device-tree
+include and the `nanopi-r2s:*` LED labels.
 
-The image uses a mainline boot stack with source-built Trusted Firmware-A BL31, mainline U-Boot, the official aarch64 rootfs, and small NanoPi R2S adjustments. Earlier Arch-on-R2S attempts often still relied on Armbian boot pieces or kernels; for example [larsch's gist](https://gist.github.com/larsch/a8f13faa2163984bb945d02efb897e6d) and [sakapoko/archlinux_r2s](https://github.com/sakapoko/archlinux_r2s).
+- Stock image: Arch Linux ARM `linux-aarch64`.
+- Minimal image: `linux-nanopi-r2c-minimal` from
+  [`nanopi-r2c-kernel-arch`](https://github.com/yimgruui/nanopi-r2c-kernel-arch).
 
-Status: boots on NanoPi R2S with mainline U-Boot `v2026.04` and TF-A `v2.15.0`, supports stock and minimal-kernel images, verifies upstream downloads during build, and configures the rear GPIO LAN/WAN LEDs at boot.
-
-This is not an official Arch Linux ARM project. For OS-level defaults such as users, passwords, and package management, use the [Arch Linux ARM documentation](https://archlinuxarm.org/).
-
-**Disclaimer:** Images are provided as-is, without warranty of fitness or successful operation on your hardware. Builds follow rolling Arch Linux ARM and upstream updates; behavior may change between releases.
-
-## AI disclosure
-
-Much of this repository was written with AI assistance and refined through iterative review, builds, and hardware testing.
+The boot chain is mainline: Rockchip TPL/SPL → Trusted Firmware-A BL31 →
+mainline U-Boot → `boot.scr` → `Image` + initramfs + `rk3328-nanopi-r2c.dtb`.
 
 ## Images
 
 | Image | Kernel |
 |-------|--------|
-| `nanopi-r2s-arch-YYYY-MM-DD.img.xz` | Stock Arch Linux ARM `linux-aarch64` |
-| `nanopi-r2s-arch-minimal-kernel-YYYY-MM-DD.img.xz` | `linux-nanopi-r2s-minimal` from [`nanopi-r2s-kernel-arch`](https://github.com/therealcoder1337/nanopi-r2s-kernel-arch) |
+| `nanopi-r2c-arch-YYYY-MM-DD.img.xz` | Stock Arch Linux ARM `linux-aarch64` |
+| `nanopi-r2c-arch-minimal-kernel-YYYY-MM-DD.img.xz` | `linux-nanopi-r2c-minimal` |
 
-Both variants use the same bootloader/rootfs process. The minimal-kernel image adds the public pacman repo, trusts the verified repo key, removes the stock kernel, and keeps the repo configured for future kernel updates.
-
-Serial console: `ttyS2` at `1500000` baud. On first boot, the root partition expands to fill the SD card. A small systemd service maps the rear GPIO LAN/WAN LEDs to the detected `r8152` and `rk_gmac-dwmac` network devices; RJ45 jack LEDs are controlled separately by the NIC/PHY drivers.
+Releases are published from GitHub Actions. Branch builds are prereleases
+(`test-<branch>-<run>`); default-branch builds are tagged
+`nanopi-r2c-arch-<date>-r<run>`. The nightly `check-arch` workflow rebuilds when
+the ALARM rootfs changes.
 
 ## Flash
 
@@ -43,90 +45,166 @@ xzcat IMAGE.img.xz | sudo dd of=/dev/sdX bs=4M status=progress conv=fsync
 
 Replace `/dev/sdX` with the SD card device from `lsblk`.
 
-## Build Locally
+## First boot
 
-Use an Arch Linux host, or an Arch container with enough privileges for `arch-chroot`. Loop devices are not required; the rootfs is staged in a directory and written with `mke2fs -d`.
+- Serial console: `ttyS2` at `1500000` baud.
+- The root partition and filesystem grow to fill the card on the first boot
+  (`parted` + online `resize2fs`).
+- Credentials come from the Arch Linux ARM rootfs: `root`/`root` and
+  `alarm`/`alarm`. **Change both immediately** (`passwd`, `passwd alarm`).
+- `alarm` is in `wheel` and `%wheel` is enabled in sudoers, so `sudo` works
+  out of the box.
+- `sshd` is enabled by the ALARM rootfs; do not expose the WAN port before
+  changing the passwords.
 
-Install dependencies:
+## What the image configures
+
+### Network
+
+- `systemd-networkd` + `systemd-resolved`, DHCP on **both** ports, matched by
+  driver: `rk_gmac-dwmac` (WAN) and `r8152` (LAN).
+- zram swap: lz4, half of RAM, `vm.swappiness=100` (`zram-generator`).
+- GPIO LEDs: `nanopi-r2s:green:lan` / `:wan` mapped to the detected interfaces.
+
+### Removable storage
+
+- `udevil` + `devmon` run as `alarm` and auto-mount hot-plugged media under
+  `/media`.
+- The stock udevil exFAT options contain the vfat-only `namecase=0`, which the
+  kernel exFAT driver rejects; the image ships fixed options
+  (`nosuid,nodev,noexec,noatime,uid=$UID,gid=$GID,umask=0022`).
+- `udevil` keeps its setuid bit (needed to mount without a password);
+  `allowed_users` is restricted to `alarm`.
+
+### SMB (installed, not enabled)
+
+`ksmbd-tools` is installed, but **no share is configured and the service is not
+enabled** — SMB is strictly opt-in. The package ships
+`/etc/ksmbd/ksmbd.conf.example`; copy it, edit your shares, then start it:
 
 ```bash
-sudo pacman -S --needed $(./build-image.sh --print-deps)
+sudo cp /etc/ksmbd/ksmbd.conf.example /etc/ksmbd/ksmbd.conf
+sudoedit /etc/ksmbd/ksmbd.conf
+sudo systemctl enable --now ksmbd   # loads the ksmbd module via modprobe@ksmbd
 ```
 
-On x86_64 hosts, also install binfmt support so `arch-chroot` can run aarch64 binaries:
+The kernel module is `ksmbd` (built as a module); starting the service pulls it
+in. Add credentials (`valid users`, `write list`, ...) in `ksmbd.conf` before
+exposing the share beyond a trusted LAN.
+
+### Packages and system
+
+- pacman uses the **USTC** mirrors for Arch Linux ARM and `archlinuxcn`; the
+  archlinuxcn keyring is installed and locally signed. The unused ALARM `[aur]`
+  repository is removed.
+- Every package is upgraded to the newest version during the image build
+  (`pacman -Syu`).
+- `vim` is the default editor (`EDITOR`/`VISUAL`, and sudo's `editor` default);
+  `nano` is not installed. `vi` maps to vim via `ex-vi-compat`.
+- Unused packages (`netctl`, `dhcpcd`, `net-tools`, `cloud-utils`), docs, man
+  pages, unused locales, `Image.gz` and non-Rockchip DTBs are removed to keep
+  the image small. `iptables` stays because `iproute2` links `libxtables`;
+  `nftables` is the firewall tool.
+- Fan control follows a 51–75 °C PWM curve on the controller the device tree
+  enables (PWM2 on the R2C); the `pwmchip` index is resolved at runtime.
+
+## Build
+
+The supported build path is GitHub Actions. See
+[docs/BUILDING.md](docs/BUILDING.md) for workflow inputs, secrets, caches,
+local builds, the full pipeline and troubleshooting.
+
+Quick version:
 
 ```bash
-sudo pacman -S --needed qemu-user-static qemu-user-static-binfmt
+# manual build on the default branch
+gh workflow run build-image.yml --ref main -f should_publish_release=true
+
+# or a test prerelease from a branch
+gh workflow run build-image.yml --ref my-branch -f should_publish_release=true
 ```
 
-Build the stock image:
+Required repository secret: `R2C_KERNEL_KEY_FPR` (fingerprint of the minimal
+kernel repo signing key). Optional variable: `R2C_KERNEL_REPO_URL`.
+
+A local build is still possible on an Arch Linux host:
 
 ```bash
+sudo pacman -S --needed $(./build-image.sh --print-deps) \
+  arch-install-scripts qemu-user-static qemu-user-static-binfmt xz
 sudo ./build-image.sh
 ```
 
-Build the minimal-kernel image:
+## Build-time verification
 
-```bash
-sudo KERNEL_VARIANT=minimal ./build-image.sh
-```
+The builder refuses to produce an image when something boot-critical is wrong:
 
-Output is written to `output/`.
+- TF-A BL31 entry point is `0x40000` and has PT_LOAD segments.
+- U-Boot is the pinned, signed `v2026.04` tag.
+- The rootfs tarball matches its MD5 and the ALARM GPG signature.
+- The stock kernel has the Motorcomm PHY driver (`CONFIG_MOTORCOMM_PHY`).
+- The initramfs contains (or the kernel has built in) the SD/MMC and ext4 boot
+  path; missing modules are added to `MODULES` and regenerated once.
+- The appliance stack is complete: udevil is setuid with fixed exFAT options,
+  `ksmbd.mountd` exists while `ksmbd.service` stays disabled, `alarm` is in
+  `wheel`, vim is the default editor and nano is gone.
+- The assembled image has a valid MBR, a byte-identical U-Boot payload,
+  `/boot/boot.scr` and `rk3328-nanopi-r2c.dtb`.
 
-Useful environment variables:
+## Troubleshooting
 
-| Variable | Default |
-|----------|---------|
-| `KERNEL_VARIANT` | `stock`; use `minimal` for `linux-nanopi-r2s-minimal` |
-| `R2S_KERNEL_REPO_URL` | public `nanopi-r2s-kernel-arch` pacman repo |
-| `R2S_KERNEL_PKGVER` | latest repo version |
-| `IMAGE_SIZE` | `1900M` |
-| `ROOTFS_HOSTNAME` | `nanopi-r2s` |
-
-Shrink an existing image:
-
-```bash
-sudo ./build-image.sh --shrink-only output/IMAGE.img
-```
-
-## CI
-
-- `build-image.yml` builds both stock and minimal-kernel images from workflow dispatch.
-- `check-arch.yml` checks the Arch Linux ARM rootfs MD5 and triggers a build of both images when it changes.
-- Release artifacts include image `.xz` file(s), `SHA256SUMS`, `LICENSE`, `LICENSE_GPL-2.0-or-later.txt`, `NOTICE`, `LICENSE_TFA.txt`, `SOURCE_INFO_TFA.txt`, `SOURCE_OFFER_U_BOOT.txt`, and `SOURCE_INFO_R2S_KERNEL.txt`.
-
-CI caches TF-A, U-Boot, and the rootfs tarball. Scheduled builds publish both stock and minimal-kernel images. Manual branch builds publish test prereleases. Release/artifact files must stay below GitHub's 2 GiB per-file limit, so the raw image defaults to `1900M`.
-
-For local workflow testing with [act](https://github.com/nektos/act):
-
-```bash
-./scripts/act-build.sh
-```
-
-The wrapper uses `act --bind` so gitignored `cache/` persists between runs. Plain `act workflow_dispatch` re-downloads everything.
+Common build failures (locale parsing, initramfs modules, Motorcomm PHY, AUR
+rebuilds, the 2 GiB release limit) are covered in
+[docs/BUILDING.md](docs/BUILDING.md#troubleshooting).
 
 ## Layout
 
 ```
-build-image.sh
+build-image.sh            # entry point
+docs/BUILDING.md          # CI/local build, pipeline, troubleshooting
 scripts/
-  common.sh             # config, deps, image helpers
-  trusted-firmware.sh   # TF-A BL31 build
-  bootloader.sh         # U-Boot build, bootloader writes
-  chroot.sh             # arch-chroot helpers
-  kernel.sh             # optional minimal-kernel variant
-  rootfs.sh             # rootfs download/configuration
-  postprocess.sh        # inspect, shrink, checksums
+  common.sh               # config, deps, image helpers
+  trusted-firmware.sh     # TF-A BL31 build
+  bootloader.sh           # U-Boot build, bootloader writes
+  chroot.sh               # arch-chroot helpers, initramfs verification
+  kernel.sh               # minimal-kernel variant
+  rootfs.sh               # rootfs download, network, zram, boot files
+  tuning.sh               # mirrors, upgrade, udevil, pruning
+  fan-control.sh          # fan-monitor cross-build and install
+  postprocess.sh          # inspect, shrink, checksums
+  templates/              # boot.cmd, systemd units and helper scripts
+packaging/
+  udevil/                 # pinned PKGBUILD (AUR, aarch64)
+  ksmbd-tools/            # pinned PKGBUILD (AUR, aarch64)
+vendor/
+  alarmsigning.gpg        # ALARM rootfs signing key
+  u-boot-release.gpg      # U-Boot release tag key
+  fan-monitor/            # vendored fan control daemon
+.github/workflows/
+  build-image.yml         # manual build + release
+  check-arch.yml          # nightly ALARM rootfs check
 ```
+
+## AI disclosure
+
+Much of this repository was written with AI assistance and refined through
+iterative review, builds, and hardware testing.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please keep changes focused, test image-building changes locally with `./scripts/act-build.sh` when practical, and mention whether hardware testing was done.
+Issues and pull requests are welcome. Keep changes focused, test build changes
+on a branch (prerelease), and say whether hardware testing was done.
 
 ## Credits
 
-The image uses Trusted Firmware-A, U-Boot, Arch Linux ARM packages, and optionally `linux-nanopi-r2s-minimal`; see [NOTICE](NOTICE), [LICENSE_TFA.txt](LICENSE_TFA.txt), [SOURCE_INFO_TFA.txt](SOURCE_INFO_TFA.txt), and [SOURCE_OFFER_U_BOOT.txt](SOURCE_OFFER_U_BOOT.txt).
+The image uses Trusted Firmware-A, U-Boot, Arch Linux ARM, USTC mirrors,
+`archlinuxcn`, `udevil`, `ksmbd-tools` and optionally
+`linux-nanopi-r2c-minimal`; see [NOTICE](NOTICE), [LICENSE_TFA.txt](LICENSE_TFA.txt),
+[SOURCE_INFO_TFA.txt](SOURCE_INFO_TFA.txt) and
+[SOURCE_OFFER_U_BOOT.txt](SOURCE_OFFER_U_BOOT.txt).
 
 ## License
 
-Builder scripts: GPL-2.0-or-later; see [LICENSE](LICENSE) and the full text in `LICENSE_GPL-2.0-or-later.txt`. Released images are combined works; see [NOTICE](NOTICE).
+Builder scripts: GPL-2.0-or-later; see [LICENSE](LICENSE) and
+`LICENSE_GPL-2.0-or-later.txt`. Released images are combined works; see
+[NOTICE](NOTICE).
