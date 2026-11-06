@@ -104,9 +104,9 @@ install_aur_packages() {
     install -d -m 0755 mnt/var/tmp/aur-pkgs
 
     for name in udevil ksmbd-tools; do
-        if compgen -G "$cache/${name}-*.pkg.tar.zst" >/dev/null; then
+        if compgen -G "$cache/${name}-*.pkg.tar.*" >/dev/null; then
             echo "    → Using cached $name package"
-            cp "$cache/${name}-"*.pkg.tar.zst mnt/var/tmp/aur-pkgs/
+            cp "$cache/${name}-"*.pkg.tar.* mnt/var/tmp/aur-pkgs/
         else
             to_build+=("$name")
         fi
@@ -117,8 +117,8 @@ install_aur_packages() {
 
         for name in "${to_build[@]}"; do
             build_aur_package "$name"
-            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.zst "$cache"/
-            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.zst mnt/var/tmp/aur-pkgs/
+            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* "$cache"/
+            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* mnt/var/tmp/aur-pkgs/
         done
 
         # Drop the build toolchain again; runtime deps (glib2, libnl) stay.
@@ -127,7 +127,7 @@ install_aur_packages() {
         rm -rf mnt/var/tmp/aur
     fi
 
-    run_arch_chroot pacman -U --noconfirm /var/tmp/aur-pkgs/*.pkg.tar.zst
+    run_arch_chroot sh -c 'pacman -U --noconfirm /var/tmp/aur-pkgs/*.pkg.tar.*'
     rm -rf mnt/var/tmp/aur-pkgs
 }
 
