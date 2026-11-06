@@ -89,3 +89,27 @@ jobs:
         with:
           path: arch-state
           key: arch-md5-state-${{ steps.arch_md5.outputs.current }}
+
+      # Keep the workflow history small: keep the 3 newest runs of each
+      # workflow and delete the rest through the API (releases are untouched).
+      - name: Prune old workflow runs
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          for workflow in check-arch.yml build-image.yml; do
+            echo "::group::Pruning $workflow (keeping 3 newest runs)"
+            gh run list --workflow="$workflow" --limit 1000 \
+              --json databaseId,status \
+              --jq '.[3:] | .[] | select(.status == "completed") | .databaseId' |
+              while read -r run_id; do
+                [ -n "$run_id" ] || continue
+                if gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" >/dev/null 2>&1; then
+                  echo "deleted run $run_id"
+                else
+                  echo "::warning::could not delete run $run_id"
+                fi
+              done
+            echo "::endgroup::"
+          done

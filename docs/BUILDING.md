@@ -85,7 +85,8 @@ packages.
    retried on the next run.
 
 Manual runs accept `should_force_build=true` to rebuild even when the MD5 is
-unchanged.
+unchanged. Every run also prunes old workflow history, keeping the 3 newest
+runs of `check-arch.yml` and `build-image.yml` (release assets are unaffected).
 
 ## Local build (optional)
 
