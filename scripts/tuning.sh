@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Appliance tuning: USTC mirrors, archlinuxcn, full upgrade, udevil,
-# ksmbd, pruning and image slimming.
+# udevil and image slimming. ksmbd-tools is installed but left disabled.
 
 APPLIANCE_USER="${APPLIANCE_USER:-alarm}"
 APPLIANCE_UID="${APPLIANCE_UID:-1000}"
@@ -66,7 +66,6 @@ install_appliance_packages() {
     if [ -f mnt/etc/sudoers ]; then
         sed -i -E 's/^#[[:space:]]*%wheel[[:space:]]+ALL=\(ALL:ALL\)[[:space:]]+ALL/%wheel ALL=(ALL:ALL) ALL/' mnt/etc/sudoers
     fi
-    install -d -o "$APPLIANCE_UID" -g "$APPLIANCE_GID" -m 0775 mnt/srv/ksmbd
 }
 
 build_aur_package() {
@@ -151,57 +150,6 @@ configure_udevil() {
     run_arch_chroot systemctl enable devmon.service
 }
 
-configure_ksmbd() {
-    echo "    → Configuring ksmbd (SMB shares for /media and /srv/ksmbd)..."
-
-    install -d -m 0755 mnt/etc/ksmbd mnt/etc/modules-load.d
-    cat > mnt/etc/ksmbd/ksmbd.conf <<EOF
-[global]
-    server string = NanoPi R2C
-    workgroup = WORKGROUP
-    security = user
-    map to guest = Bad User
-
-[media]
-    path = /media
-    guest ok = yes
-    read only = no
-    force user = ${APPLIANCE_USER}
-    force group = ${APPLIANCE_USER}
-    create mask = 0664
-    directory mask = 0775
-
-[share]
-    path = /srv/ksmbd
-    guest ok = yes
-    read only = no
-    force user = ${APPLIANCE_USER}
-    force group = ${APPLIANCE_USER}
-    create mask = 0664
-    directory mask = 0775
-EOF
-
-    echo "ksmbd" > mnt/etc/modules-load.d/ksmbd.conf
-
-    if [ ! -f mnt/usr/lib/systemd/system/ksmbd.service ]; then
-        cat > mnt/etc/systemd/system/ksmbd.service <<'EOF'
-[Unit]
-Description=ksmbd SMB server
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/ksmbd.mountd -n
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    fi
-
-    run_arch_chroot systemctl enable ksmbd.service
-}
-
 configure_default_editor() {
     echo "    → Setting vim as the default editor..."
 
@@ -283,10 +231,17 @@ verify_appliance_stack() {
     # /usr/bin/ksmbd.mountd is an absolute symlink into /usr/lib/ksmbd-tools;
     # test it inside the chroot, not against the build host's root.
     if run_arch_chroot test -x /usr/bin/ksmbd.mountd; then
-        echo "       ksmbd: OK"
+        echo "       ksmbd: OK (tools installed)"
     else
         echo "       ksmbd: FAIL (ksmbd.mountd missing)" >&2
         failures=1
+    fi
+
+    if [ -e mnt/etc/systemd/system/multi-user.target.wants/ksmbd.service ]; then
+        echo "       ksmbd service: FAIL (enabled at boot; must be manual)" >&2
+        failures=1
+    else
+        echo "       ksmbd service: OK (disabled, manual start)"
     fi
 
     if grep -qE "^wheel:.*[[:space:],:]${APPLIANCE_USER}(,|$)" mnt/etc/group; then

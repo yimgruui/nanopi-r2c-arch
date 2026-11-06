@@ -76,17 +76,21 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
 - `udevil` keeps its setuid bit (needed to mount without a password);
   `allowed_users` is restricted to `alarm`.
 
-### SMB shares
+### SMB (installed, not enabled)
 
-`ksmbd` (in-kernel SMB3 server) shares:
+`ksmbd-tools` is installed, but **no share is configured and the service is not
+enabled** — SMB is strictly opt-in. The package ships
+`/etc/ksmbd/ksmbd.conf.example`; copy it, edit your shares, then start it:
 
-| Share | Path | Access |
-|---|---|---|
-| `media` | `/media` | guest read-write, forced to `alarm` |
-| `share` | `/srv/ksmbd` | guest read-write, forced to `alarm` |
+```bash
+sudo cp /etc/ksmbd/ksmbd.conf.example /etc/ksmbd/ksmbd.conf
+sudoedit /etc/ksmbd/ksmbd.conf
+sudo systemctl enable --now ksmbd   # loads the ksmbd module via modprobe@ksmbd
+```
 
-The shares are **unauthenticated** by design (plug-and-play on a trusted LAN).
-To add credentials, edit `/etc/ksmbd/ksmbd.conf` and restart `ksmbd`.
+The kernel module is `ksmbd` (built as a module); starting the service pulls it
+in. Add credentials (`valid users`, `write list`, ...) in `ksmbd.conf` before
+exposing the share beyond a trusted LAN.
 
 ### Packages and system
 
@@ -142,8 +146,8 @@ The builder refuses to produce an image when something boot-critical is wrong:
 - The initramfs contains (or the kernel has built in) the SD/MMC and ext4 boot
   path; missing modules are added to `MODULES` and regenerated once.
 - The appliance stack is complete: udevil is setuid with fixed exFAT options,
-  `ksmbd.mountd` exists, `alarm` is in `wheel`, vim is the default editor and
-  nano is gone.
+  `ksmbd.mountd` exists while `ksmbd.service` stays disabled, `alarm` is in
+  `wheel`, vim is the default editor and nano is gone.
 - The assembled image has a valid MBR, a byte-identical U-Boot payload,
   `/boot/boot.scr` and `rk3328-nanopi-r2c.dtb`.
 
@@ -165,7 +169,7 @@ scripts/
   chroot.sh               # arch-chroot helpers, initramfs verification
   kernel.sh               # minimal-kernel variant
   rootfs.sh               # rootfs download, network, zram, boot files
-  tuning.sh               # mirrors, upgrade, udevil, ksmbd, pruning
+  tuning.sh               # mirrors, upgrade, udevil, pruning
   fan-control.sh          # fan-monitor cross-build and install
   postprocess.sh          # inspect, shrink, checksums
   templates/              # boot.cmd, systemd units and helper scripts

@@ -143,8 +143,9 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 3. Arch Linux ARM rootfs downloaded over HTTP, checked against the MD5 **and**
    the ALARM GPG signature.
 4. `arch-chroot` configuration: USTC mirrors + archlinuxcn, full
-   `pacman -Syu`, network, LED/fan/zram services, udevil/ksmbd built from
-   vendored PKGBUILDs, user/editor defaults, package pruning and stripping.
+   `pacman -Syu`, network, LED/fan/zram services, udevil/ksmbd-tools built
+   from vendored PKGBUILDs (ksmbd service left disabled), user/editor
+   defaults, package pruning and stripping.
 5. Stock kernel gets a Motorcomm PHY check; the minimal variant replaces the
    kernel from the signed pacman repo.
 6. `/boot/boot.scr` generated, initramfs boot path verified (modules added and
@@ -168,6 +169,7 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 
 1. Trigger `build-image.yml` on a test branch and check the prerelease.
 2. Flash the stock image and verify: serial console, both NICs with DHCP, USB
-   hot-plug mount, exFAT read/write, SMB share, fan curve.
+   hot-plug mount, exFAT read/write, fan curve; configure and start ksmbd
+   manually to test SMB.
 3. Merge to the default branch; the nightly `check-arch.yml` run will then
    publish the regular release.
