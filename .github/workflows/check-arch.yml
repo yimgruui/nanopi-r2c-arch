@@ -100,7 +100,7 @@ jobs:
           set -uo pipefail
           for workflow in check-arch.yml build-image.yml; do
             echo "::group::Pruning $workflow (keeping 3 newest runs)"
-            gh run list --workflow="$workflow" --limit 1000 \
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow="$workflow" --limit 1000 \
               --json databaseId,status \
               --jq '.[3:] | .[] | select(.status == "completed") | .databaseId' |
               while read -r run_id; do
