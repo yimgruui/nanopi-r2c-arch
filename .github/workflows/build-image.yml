@@ -38,7 +38,6 @@ jobs:
           persist-credentials: false
 
       - id: arch_md5
-        if: env.ACT != 'true'
         run: |
           set -euo pipefail
 
@@ -54,7 +53,6 @@ jobs:
           echo "Arch rootfs cache key MD5: $MD5"
 
       - name: Cache U-Boot tree
-        if: env.ACT != 'true'
         id: cache_uboot
         uses: actions/cache@v5
         with:
@@ -64,7 +62,6 @@ jobs:
           key: uboot-${{ hashFiles('scripts/common.sh', 'scripts/bootloader.sh') }}
 
       - name: Cache TF-A tree
-        if: env.ACT != 'true'
         id: cache_tfa
         uses: actions/cache@v5
         with:
@@ -74,7 +71,6 @@ jobs:
           key: tfa-${{ hashFiles('scripts/common.sh', 'scripts/trusted-firmware.sh') }}
 
       - name: Cache rootfs tarball
-        if: env.ACT != 'true'
         id: cache_rootfs
         uses: actions/cache@v5
         with:
@@ -82,7 +78,6 @@ jobs:
           key: arch-rootfs-${{ steps.arch_md5.outputs.value }}
 
       - name: Cache AUR packages
-        if: env.ACT != 'true'
         id: cache_aur
         uses: actions/cache@v5
         with:
@@ -90,7 +85,6 @@ jobs:
           key: aur-${{ hashFiles('packaging/**/PKGBUILD') }}
 
       - name: Cache status
-        if: env.ACT != 'true'
         run: |
           echo "TF-A cache-hit: ${{ steps.cache_tfa.outputs.cache-hit }}"
           echo "u-boot cache-hit: ${{ steps.cache_uboot.outputs.cache-hit }}"
@@ -219,7 +213,6 @@ jobs:
           fi
 
       - name: Upload build artifact
-        if: env.ACT != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.release.outputs.base }}
@@ -233,7 +226,7 @@ jobs:
           compression-level: 0
 
       - name: Publish GitHub Release
-        if: env.ACT != 'true' && inputs.should_publish_release
+        if: inputs.should_publish_release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.release.outputs.tag }}
