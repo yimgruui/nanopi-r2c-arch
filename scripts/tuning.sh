@@ -71,7 +71,7 @@ install_appliance_packages() {
 
 build_aur_package() {
     local name="$1"
-    local pkgdir="mnt/tmp/aur/$name"
+    local pkgdir="mnt/var/tmp/aur/$name"
 
     [ -d "$SCRIPT_DIR/packaging/$name" ] || {
         echo "Error: missing vendor packaging for $name" >&2
@@ -79,13 +79,18 @@ build_aur_package() {
     }
 
     rm -rf "$pkgdir"
-    install -d -m 0755 mnt/tmp/aur
+    install -d -m 0755 mnt/var/tmp/aur
     cp -a "$SCRIPT_DIR/packaging/$name" "$pkgdir"
-    chown -R "${APPLIANCE_UID}:${APPLIANCE_GID}" mnt/tmp/aur
+    chown -R "${APPLIANCE_UID}:${APPLIANCE_GID}" mnt/var/tmp/aur
+
+    run_arch_chroot test -d "/var/tmp/aur/$name" || {
+        echo "Error: /var/tmp/aur/$name is not visible inside the chroot" >&2
+        exit 1
+    }
 
     echo "    → Building $name (aarch64 makepkg)..."
     run_arch_chroot su -s /bin/bash "$APPLIANCE_USER" -c \
-        "export HOME=/home/$APPLIANCE_USER; cd /tmp/aur/$name && makepkg -f --nodeps --noconfirm"
+        "export HOME=/home/$APPLIANCE_USER; cd /var/tmp/aur/$name && makepkg -f --nodeps --noconfirm"
 }
 
 install_aur_packages() {
@@ -95,13 +100,13 @@ install_aur_packages() {
 
     echo "    → Installing udevil and ksmbd-tools (vendored AUR packages)..."
     mkdir -p "$cache"
-    rm -rf mnt/tmp/aur-pkgs
-    install -d -m 0755 mnt/tmp/aur-pkgs
+    rm -rf mnt/var/tmp/aur-pkgs
+    install -d -m 0755 mnt/var/tmp/aur-pkgs
 
     for name in udevil ksmbd-tools; do
         if compgen -G "$cache/${name}-*.pkg.tar.zst" >/dev/null; then
             echo "    → Using cached $name package"
-            cp "$cache/${name}-"*.pkg.tar.zst mnt/tmp/aur-pkgs/
+            cp "$cache/${name}-"*.pkg.tar.zst mnt/var/tmp/aur-pkgs/
         else
             to_build+=("$name")
         fi
@@ -112,18 +117,18 @@ install_aur_packages() {
 
         for name in "${to_build[@]}"; do
             build_aur_package "$name"
-            cp mnt/tmp/aur/"$name"/*.pkg.tar.zst "$cache"/
-            cp mnt/tmp/aur/"$name"/*.pkg.tar.zst mnt/tmp/aur-pkgs/
+            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.zst "$cache"/
+            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.zst mnt/var/tmp/aur-pkgs/
         done
 
         # Drop the build toolchain again; runtime deps (glib2, libnl) stay.
         run_chroot_pacman -Rns --noconfirm base-devel >/dev/null 2>&1 || true
         run_chroot_pacman -Rns --noconfirm git meson ninja intltool >/dev/null 2>&1 || true
-        rm -rf mnt/tmp/aur
+        rm -rf mnt/var/tmp/aur
     fi
 
-    run_arch_chroot pacman -U --noconfirm /tmp/aur-pkgs/*.pkg.tar.zst
-    rm -rf mnt/tmp/aur-pkgs
+    run_arch_chroot pacman -U --noconfirm /var/tmp/aur-pkgs/*.pkg.tar.zst
+    rm -rf mnt/var/tmp/aur-pkgs
 }
 
 configure_udevil() {
