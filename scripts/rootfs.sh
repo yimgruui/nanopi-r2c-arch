@@ -309,8 +309,13 @@ extract_and_configure() {
     fi
 
     setup_chroot_build_opts
+    prepare_mkinitcpio_chroot
     run_arch_chroot pacman-key --init
     run_arch_chroot pacman-key --populate archlinuxarm
+
+    configure_image_repos
+    install_archlinuxcn_keyring
+    system_upgrade
 
     # 生成已启用的 UTF-8 locale
     if [ -f mnt/etc/locale.gen ]; then
@@ -331,7 +336,15 @@ extract_and_configure() {
     # 安装并配置 zram，确保在 slim 清理之前完成
     configure_zram
 
+    install_appliance_packages
+    install_aur_packages
+    configure_udevil
+    configure_ksmbd
+    prune_packages
+
     slim_rootfs
+    strip_image
+    verify_appliance_stack
 
     verify_initramfs_boot_support
 
@@ -359,15 +372,7 @@ add_resize_service() {
         ln -sf /etc/systemd/system/resize-rootfs.service \
            mnt/etc/systemd/system/multi-user.target.wants/resize-rootfs.service
 
-        echo "    → Installing cloud-utils in image (growpart for first boot)..."
-        set_chroot_resolver
-        run_chroot_pacman -Sy
-
-        if ! run_chroot_pacman -S cloud-utils; then
-            echo "Error: cloud-utils install failed (required for first-boot growpart)" >&2
-            unmount_chroot_root
-            exit 1
-        fi
+        # parted is installed by install_appliance_packages(); no cloud-utils.
     else
         echo "[9/10] Skipping resize service"
     fi

@@ -26,7 +26,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     container:
       image: archlinux:latest
       options: --privileged
@@ -80,6 +80,14 @@ jobs:
         with:
           path: cache/rootfs
           key: arch-rootfs-${{ steps.arch_md5.outputs.value }}
+
+      - name: Cache AUR packages
+        if: env.ACT != 'true'
+        id: cache_aur
+        uses: actions/cache@v5
+        with:
+          path: cache/aur-packages
+          key: aur-${{ hashFiles('packaging/**/PKGBUILD') }}
 
       - name: Cache status
         if: env.ACT != 'true'

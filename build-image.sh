@@ -24,6 +24,7 @@ source "$SCRIPTS_DIR/bootloader.sh"
 source "$SCRIPTS_DIR/rootfs.sh"
 source "$SCRIPTS_DIR/postprocess.sh"
 source "$SCRIPTS_DIR/fan-control.sh"
+source "$SCRIPTS_DIR/tuning.sh"
 
 run_build() {
     require_root

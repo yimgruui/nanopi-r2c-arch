@@ -42,7 +42,7 @@ kernel, and keeps the repo configured for future kernel updates.
 ## What the image configures
 
 - Serial console: `ttyS2` at `1500000` baud.
-- First boot: the root partition expands to fill the SD card (`growpart` + online `resize2fs`).
+- First boot: the root partition expands to fill the SD card (parted + online `resize2fs`).
 - Network: `systemd-networkd` with DHCP **on both** Ethernet ports, matched by
   driver (`rk_gmac-dwmac` = WAN, `r8152` = LAN), plus `systemd-resolved`.
 - zram swap: lz4, half of RAM, `vm.swappiness=100` (`zram-generator`).
@@ -51,13 +51,28 @@ kernel, and keeps the repo configured for future kernel updates.
 - Fan: `fan-monitor` follows a 51–75 °C curve on the PWM controller that the
   device tree enables (PWM2 on the R2C). It resolves `pwmchipN` at runtime, so
   it also works on kernels that number the chip differently.
+- **Removable media**: `udevil` + `devmon` run as the `alarm` user and auto-mount
+  hot-plugged drives under `/media`. The exFAT mount options are fixed for the
+  mainline kernel (the stock udevil defaults include the vfat-only
+  `namecase=0`, which the exFAT driver rejects).
+- **SMB shares**: `ksmbd` serves `/media` (whatever udevil just mounted) and
+  `/srv/ksmbd` as guest read-write shares, with files forced to `alarm`.
+- **Package sources**: ALARM mirror and the `archlinuxcn` repo both use USTC
+  (`mirrors.ustc.edu.cn`); the unused ALARM `[aur]` repo is removed.
+- **Up to date on first boot**: the build runs `pacman -Syu`, so every package
+  is at the newest version at image creation time.
+- **Smaller image**: unused packages (vim, netctl, dhcpcd, net-tools, gpm,
+  cloud-utils) are removed, and docs, man pages, unused locales, `Image.gz`
+  and non-Rockchip DTBs are stripped.
 - Firmware: only `linux-firmware-realtek` (+ `-whence`) is installed; the
   heavy GPU/WiFi firmware packages are kept out via `IgnorePkg`.
 
-**Default credentials:** the image inherits the Arch Linux ARM rootfs default,
-i.e. user `root` with password `root`. Change it immediately after the first
-boot (`passwd`) and do not expose the WAN port to the internet before doing so.
-`sshd`, if enabled by the ALARM rootfs, accepts password logins.
+**Default credentials:** `root`/`root` and `alarm`/`alarm` from the Arch Linux
+ARM rootfs. The `alarm` user is in the `wheel` group and `%wheel` is enabled in
+sudoers, so `sudo` works out of the box — change both passwords immediately
+(`passwd`, `passwd alarm`) and do not expose the WAN port before doing so.
+The SMB guest shares are read-write without authentication; keep the box on a
+trusted LAN or add credentials in `/etc/ksmbd/ksmbd.conf`.
 
 ## Flash
 
@@ -182,12 +197,16 @@ scripts/
   chroot.sh             # arch-chroot helpers, initramfs verification
   kernel.sh             # optional minimal-kernel variant
   rootfs.sh             # rootfs download/configuration, network, zram
+  tuning.sh             # mirrors, upgrade, udevil, ksmbd, pruning
   fan-control.sh        # fan-monitor cross-build and install
   postprocess.sh        # inspect, shrink, checksums
   setup-build-env.sh    # native Arch host + external build volume
   local-build.sh        # build with BUILD_ROOT on the external volume
   act-build.sh          # run the workflow locally with act
-  templates/            # boot.cmd, LED/resize/fan units and scripts
+  templates/            # boot.cmd, LED/resize/fan/devmon units and scripts
+packaging/
+  udevil/               # pinned PKGBUILD (AUR, aarch64)
+  ksmbd-tools/          # pinned PKGBUILD (AUR, aarch64)
 vendor/
   alarmsigning.gpg      # ALARM rootfs signing key
   u-boot-release.gpg    # U-Boot release tag key
@@ -208,6 +227,8 @@ The builder refuses to produce an image when something boot-critical is wrong:
   regenerated once; the build fails if they are still absent.
 - The assembled image has a valid MBR, a byte-identical U-Boot payload and the
   expected `/boot/boot.scr` + `rk3328-nanopi-r2c.dtb`.
+- The appliance stack is present: udevil is setuid, its exFAT options contain
+  no vfat-only flags, `ksmbd.mountd` exists and `alarm` is in `wheel`.
 
 ## Contributing
 
