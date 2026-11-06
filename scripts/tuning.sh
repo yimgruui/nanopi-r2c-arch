@@ -226,7 +226,7 @@ EOF
 }
 
 prune_packages() {
-    local -a remove=(nano netctl dhcpcd net-tools iptables)
+    local -a remove=(nano netctl dhcpcd net-tools)
     local -a installed=()
     local p
 
@@ -283,7 +283,7 @@ verify_appliance_stack() {
         echo "       ksmbd: OK"
     fi
 
-    if grep -qE "^wheel:.*[[:space:],]${APPLIANCE_USER}(,|$)" mnt/etc/group; then
+    if grep -qE "^wheel:.*[[:space:],:]${APPLIANCE_USER}(,|$)" mnt/etc/group; then
         echo "       wheel group: OK"
     else
         echo "       wheel group: FAIL ($APPLIANCE_USER missing)" >&2
@@ -297,10 +297,10 @@ verify_appliance_stack() {
         failures=1
     fi
 
-    if [ ! -e mnt/usr/bin/iptables ]; then
-        echo "       firewall: OK (nftables only)"
+    if [ -x mnt/usr/bin/nft ]; then
+        echo "       firewall: OK (nft; iptables kept for iproute2's libxtables)"
     else
-        echo "       firewall: FAIL (iptables still installed)" >&2
+        echo "       firewall: FAIL (nft missing)" >&2
         failures=1
     fi
 

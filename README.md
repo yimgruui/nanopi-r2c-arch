@@ -63,9 +63,10 @@ kernel, and keeps the repo configured for future kernel updates.
   is at the newest version at image creation time.
 - **Editor**: `vim` is installed and exported as `EDITOR`/`VISUAL`; `nano` is
   not part of the image.
-- **Smaller image**: unused packages (nano, iptables, netctl, dhcpcd, net-tools,
+- **Smaller image**: unused packages (nano, netctl, dhcpcd, net-tools,
   cloud-utils) are removed, and docs, man pages, unused locales, `Image.gz`
-  and non-Rockchip DTBs are stripped. `nftables` remains the firewall tool.
+  and non-Rockchip DTBs are stripped. `nftables` is the firewall tool;
+  `iptables` stays because `iproute2` links `libxtables`.
 - Firmware: only `linux-firmware-realtek` (+ `-whence`) is installed; the
   heavy GPU/WiFi firmware packages are kept out via `IgnorePkg`.
 
@@ -231,7 +232,7 @@ The builder refuses to produce an image when something boot-critical is wrong:
   expected `/boot/boot.scr` + `rk3328-nanopi-r2c.dtb`.
 - The appliance stack is present: udevil is setuid, its exFAT options contain
   no vfat-only flags, `ksmbd.mountd` exists, `alarm` is in `wheel`, vim is the
-  default editor and iptables/nano are gone.
+  default editor and nano is gone.
 
 ## Contributing
 
