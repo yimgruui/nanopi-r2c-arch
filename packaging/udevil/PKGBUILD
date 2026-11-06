@@ -4,9 +4,11 @@
 
 pkgname=udevil
 _commit=ce9f1c5f811e34913b050aed193a39a63ac81e73
-pkgver=2026.11.06
+pkgver=2026.master
 pkgrel=1
 pkgdesc="Automount removable media without a password (NanoPi R2C build)"
+# Keep pkgver identical to the AUR package so pacman/yay do not treat this
+# build as "newer" and refuse future AUR updates.
 arch=('aarch64')
 url="https://github.com/IgnorantGuru/udevil"
 license=('GPL-3.0-or-later')
