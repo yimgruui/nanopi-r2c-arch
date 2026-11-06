@@ -3,7 +3,7 @@ Description=FAN speed control
 After=local-fs.target
 
 [Service]
-ExecStart=/usr/local/bin/fan-monitor64
+ExecStart=/usr/local/sbin/fan-monitor-start.sh
 Type=oneshot
 RemainAfterExit=true
 

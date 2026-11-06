@@ -6,36 +6,48 @@
 # (the default build targets inverted polarity, the common 2-wire fan case).
 FAN_CONTROL_EXTRAFLAGS="${FAN_CONTROL_EXTRAFLAGS:-}"
 
-verify_fan_pwm0() {
-    # fan-monitor drives /sys/class/pwm/pwmchip0/pwm0; the NanoPi R2C dtb must
-    # enable pwm0 (RK3328 node /pwm@ff1b0000). We deliberately do NOT patch the
-    # dtb in the build: fdtput-patching broke boot on this image. Without pwm0
-    # the fan-monitor service simply fails at runtime, which does not affect
-    # system boot.
-    local dtb="$1" status
-    status=$(fdtget -t s "$dtb" /pwm@ff1b0000 status 2>/dev/null || echo "")
-    if [ "$status" = "okay" ]; then
-        echo "    -> dtb enables pwm0 - fan control ready"
+# PWM controllers in rk3328.dtsi, in probe order.
+FAN_PWM_NODES=(/pwm@ff1b0000 /pwm@ff1b0010 /pwm@ff1b0020 /pwm@ff1b0030)
+
+verify_fan_pwm() {
+    # The fan header on the NanoPi R2 family is wired to PWM2
+    # (/pwm@ff1b0020). Do not patch the dtb (that broke boot on this image);
+    # just report which controller is enabled, because the runtime wrapper
+    # resolves the pwmchip index from /sys/class/pwm/pwmchip*/device/of_node.
+    local dtb="$1" node status index=0 enabled=""
+
+    for node in "${FAN_PWM_NODES[@]}"; do
+        status=$(fdtget -t s "$dtb" "$node" status 2>/dev/null || echo "")
+        if [ "$status" = "okay" ]; then
+            enabled="${enabled}${enabled:+, }${node} (pwmchip${index})"
+        fi
+        index=$((index + 1))
+    done
+
+    if [ -n "$enabled" ]; then
+        echo "    -> dtb enables ${enabled}; fan-monitor picks it at runtime"
     else
-        echo "       Note: dtb leaves pwm0 '${status:-absent}'; fan-monitor will not run" >&2
-        echo "             until pwm0 is enabled in the dtb (future validated dtb work)." >&2
+        echo "       Note: dtb enables no PWM controller; fan-monitor will no-op" >&2
+        echo "             (the fan is optional and this does not affect boot)" >&2
     fi
 }
 
 install_fan_control() {
     echo "    -> Installing fan speed control (fan-monitor64)..."
 
-    verify_fan_pwm0 "mnt/boot/dtbs/$BOOT_DTB"
+    verify_fan_pwm "mnt/boot/dtbs/$BOOT_DTB"
 
     local tmpdir
     tmpdir=$(mktemp -d)
 
     # Cross-compile on the build host; no toolchain inside the image.
-    aarch64-linux-gnu-gcc -O2 -Wall -DNEBUG ${FAN_CONTROL_EXTRAFLAGS} \
+    aarch64-linux-gnu-gcc -O2 -Wall -DNDEBUG ${FAN_CONTROL_EXTRAFLAGS} \
         -o "$tmpdir/fan-monitor64" \
         "$SCRIPT_DIR/vendor/fan-monitor/fan-monitor.c" -lrt
 
     install -Dm0755 "$tmpdir/fan-monitor64" mnt/usr/local/bin/fan-monitor64
+    install -Dm0755 "$TEMPLATES_DIR/fan-monitor-start.sh" \
+        mnt/usr/local/sbin/fan-monitor-start.sh
     install -Dm0644 "$SCRIPT_DIR/vendor/fan-monitor/fan-monitor.service" \
         mnt/etc/systemd/system/fan-monitor.service
 

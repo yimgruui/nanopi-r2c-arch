@@ -26,6 +26,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     container:
       image: archlinux:latest
       options: --privileged
@@ -101,20 +102,30 @@ jobs:
           /usr/lib/systemd/systemd-binfmt
           test -f /proc/sys/fs/binfmt_misc/qemu-aarch64
 
-      - name: Build image
+      - name: Build stock image
         run: |
           set -euo pipefail
           rm -f output/*.img output/*.img.xz output/SHA256SUMS output/IMAGES \
             output/SOURCE_INFO_R2C_KERNEL.txt
 
-          build_image_variant() {
-            local variant="$1"
-            echo "==> Building ${variant} image"
-            KERNEL_VARIANT="$variant" ./build-image.sh
-          }
+          echo "==> Building stock image"
+          KERNEL_VARIANT=stock ./build-image.sh
+        env:
+          CI: "1"
+          CACHE_DIR: cache
+          OUTPUT_DIR: output
+          ARCH_ROOTFS_MD5: ${{ steps.arch_md5.outputs.value }}
+          IMAGE_SIZE: 1900M
+          SHOULD_SKIP_TFA_REBUILD: "1"
+          SHOULD_SKIP_UBOOT_REBUILD: "1"
 
-          build_image_variant stock
-          build_image_variant minimal
+      - name: Build minimal-kernel image
+        id: minimal
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          echo "==> Building minimal-kernel image"
+          KERNEL_VARIANT=minimal ./build-image.sh
         env:
           CI: "1"
           CACHE_DIR: cache
@@ -125,6 +136,17 @@ jobs:
           SHOULD_SKIP_UBOOT_REBUILD: "1"
           R2C_KERNEL_REPO_URL: ${{ vars.R2C_KERNEL_REPO_URL }}
           R2C_KERNEL_KEY_FPR: ${{ secrets.R2C_KERNEL_KEY_FPR }}
+
+      - name: Minimal-kernel result
+        if: always()
+        run: |
+          if [ "${{ steps.minimal.outcome }}" != "success" ]; then
+            echo "::warning::minimal-kernel image failed; publishing the stock image only"
+            # A failed build can leave a raw image behind; never publish it.
+            rm -f output/nanopi-r2c-arch-minimal-kernel-*.img \
+              output/nanopi-r2c-arch-minimal-kernel-*.img.xz \
+              output/SOURCE_INFO_R2C_KERNEL.txt
+          fi
 
       - name: List images
         run: |
@@ -182,7 +204,11 @@ jobs:
           set -euo pipefail
           cp LICENSE LICENSE_GPL-2.0-or-later.txt NOTICE LICENSE_TFA.txt \
             SOURCE_INFO_TFA.txt SOURCE_OFFER_U_BOOT.txt output/
-          test -f output/SOURCE_INFO_R2C_KERNEL.txt
+          if [ -f output/SOURCE_INFO_R2C_KERNEL.txt ]; then
+            echo "Including minimal-kernel source information"
+          else
+            echo "::warning::no minimal-kernel image built; release lacks SOURCE_INFO_R2C_KERNEL.txt"
+          fi
 
       - name: Upload build artifact
         if: env.ACT != 'true'
@@ -192,13 +218,9 @@ jobs:
           path: |
             output/*.img.xz
             output/SHA256SUMS
-            output/LICENSE
-            output/LICENSE_GPL-2.0-or-later.txt
+            output/LICENSE*
             output/NOTICE
-            output/LICENSE_TFA.txt
-            output/SOURCE_INFO_TFA.txt
-            output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            output/SOURCE_*
           if-no-files-found: error
           compression-level: 0
 
@@ -230,10 +252,6 @@ jobs:
           files: |
             output/*.img.xz
             output/SHA256SUMS
-            output/LICENSE
-            output/LICENSE_GPL-2.0-or-later.txt
+            output/LICENSE*
             output/NOTICE
-            output/LICENSE_TFA.txt
-            output/SOURCE_INFO_TFA.txt
-            output/SOURCE_OFFER_U_BOOT.txt
-            output/SOURCE_INFO_R2C_KERNEL.txt
+            output/SOURCE_*

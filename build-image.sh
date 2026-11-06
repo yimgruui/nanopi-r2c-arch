@@ -2,6 +2,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 set -euo pipefail
 
+# Tool output is parsed with awk/grep (readelf, parted, tune2fs, ...); force the
+# C locale so those parses do not break on translated output.
+export LC_ALL=C
+
 # NanoPi R2C Arch Linux ARM image builder (stock ALARM linux-aarch64 kernel).
 # Boot chain: mainline U-Boot TPL/SPL + TF-A BL31 + U-Boot proper.
 

@@ -13,7 +13,12 @@ setenv consoleargs "console=ttyS2,1500000 earlycon=uart8250,mmio32,0xff130000"
 if test "${devtype}" = "mmc"; then
     part uuid mmc ${devnum}:${distro_bootpart} partuuid
 fi
-setenv bootargs "root=${rootdev} rootwait rootfstype=${rootfstype} rw ${consoleargs} loglevel=7 ubootpart=${partuuid}"
+if test -n "${partuuid}"; then
+    setenv rootarg "root=PARTUUID=${partuuid}"
+else
+    setenv rootarg "root=${rootdev}"
+fi
+setenv bootargs "${rootarg} rootwait rootfstype=${rootfstype} rw ${consoleargs} loglevel=7 ubootpart=${partuuid}"
 
 load ${devtype} ${devnum}:${distro_bootpart} ${ramdisk_addr_r} ${prefix}initramfs-linux.img || exit 1
 setenv ramdisk_size ${filesize}
