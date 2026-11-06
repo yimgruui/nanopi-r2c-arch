@@ -252,6 +252,10 @@ strip_image() {
         ! -name 'en*' ! -name 'zh_CN' ! -name 'zh_TW' -exec rm -rf {} + 2>/dev/null || true
     rm -rf mnt/usr/share/i18n
 
+    # pacman -Scc answers "no" to the cache prompt under --noconfirm, and the
+    # firmware slim-down downloads again afterwards; drop the cache for real.
+    rm -rf mnt/var/cache/pacman/pkg/*
+
     # Only the R2C device tree and the raw kernel image are used by boot.scr.
     rm -f mnt/boot/Image.gz
     find mnt/boot/dtbs -mindepth 1 -maxdepth 1 -type d ! -name rockchip -exec rm -rf {} + 2>/dev/null || true
