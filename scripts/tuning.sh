@@ -276,11 +276,13 @@ verify_appliance_stack() {
         echo "       udevil exFAT options: OK"
     fi
 
-    if [ ! -x mnt/usr/bin/ksmbd.mountd ]; then
+    # /usr/bin/ksmbd.mountd is an absolute symlink into /usr/lib/ksmbd-tools;
+    # test it inside the chroot, not against the build host's root.
+    if run_arch_chroot test -x /usr/bin/ksmbd.mountd; then
+        echo "       ksmbd: OK"
+    else
         echo "       ksmbd: FAIL (ksmbd.mountd missing)" >&2
         failures=1
-    else
-        echo "       ksmbd: OK"
     fi
 
     if grep -qE "^wheel:.*[[:space:],:]${APPLIANCE_USER}(,|$)" mnt/etc/group; then
