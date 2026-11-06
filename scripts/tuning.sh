@@ -197,8 +197,31 @@ EOF
     run_arch_chroot systemctl enable ksmbd.service
 }
 
+configure_default_editor() {
+    echo "    → Setting vim as the default editor..."
+
+    install -d -m 0755 mnt/etc/profile.d
+    cat > mnt/etc/profile.d/editor.sh <<'EOF'
+export EDITOR=vim
+export VISUAL=vim
+EOF
+
+    touch mnt/etc/environment
+    local kv
+    for kv in "EDITOR=vim" "VISUAL=vim"; do
+        grep -qx "$kv" mnt/etc/environment || printf '%s\n' "$kv" >> mnt/etc/environment
+    done
+
+    # visudo / sudoedit use the sudo 'editor' Defaults rather than $EDITOR.
+    if [ -f mnt/etc/sudoers ]; then
+        grep -q '^Defaults editor=' mnt/etc/sudoers \
+            || echo 'Defaults editor=/usr/bin/vim' >> mnt/etc/sudoers
+        run_arch_chroot visudo -c >/dev/null
+    fi
+}
+
 prune_packages() {
-    local -a remove=(vim vim-runtime ex-vi-compat gpm netctl dhcpcd net-tools)
+    local -a remove=(nano netctl dhcpcd net-tools iptables)
     local -a installed=()
     local p
 
@@ -259,6 +282,20 @@ verify_appliance_stack() {
         echo "       wheel group: OK"
     else
         echo "       wheel group: FAIL ($APPLIANCE_USER missing)" >&2
+        failures=1
+    fi
+
+    if [ -x mnt/usr/bin/vim ] && [ ! -e mnt/usr/bin/nano ] && grep -qx 'EDITOR=vim' mnt/etc/environment; then
+        echo "       editor: OK (vim default, nano absent)"
+    else
+        echo "       editor: FAIL (vim missing, nano present, or EDITOR unset)" >&2
+        failures=1
+    fi
+
+    if [ ! -e mnt/usr/bin/iptables ]; then
+        echo "       firewall: OK (nftables only)"
+    else
+        echo "       firewall: FAIL (iptables still installed)" >&2
         failures=1
     fi
 

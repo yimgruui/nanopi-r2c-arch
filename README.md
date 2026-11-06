@@ -61,9 +61,11 @@ kernel, and keeps the repo configured for future kernel updates.
   (`mirrors.ustc.edu.cn`); the unused ALARM `[aur]` repo is removed.
 - **Up to date on first boot**: the build runs `pacman -Syu`, so every package
   is at the newest version at image creation time.
-- **Smaller image**: unused packages (vim, netctl, dhcpcd, net-tools, gpm,
+- **Editor**: `vim` is installed and exported as `EDITOR`/`VISUAL`; `nano` is
+  not part of the image.
+- **Smaller image**: unused packages (nano, iptables, netctl, dhcpcd, net-tools,
   cloud-utils) are removed, and docs, man pages, unused locales, `Image.gz`
-  and non-Rockchip DTBs are stripped.
+  and non-Rockchip DTBs are stripped. `nftables` remains the firewall tool.
 - Firmware: only `linux-firmware-realtek` (+ `-whence`) is installed; the
   heavy GPU/WiFi firmware packages are kept out via `IgnorePkg`.
 
@@ -228,7 +230,8 @@ The builder refuses to produce an image when something boot-critical is wrong:
 - The assembled image has a valid MBR, a byte-identical U-Boot payload and the
   expected `/boot/boot.scr` + `rk3328-nanopi-r2c.dtb`.
 - The appliance stack is present: udevil is setuid, its exFAT options contain
-  no vfat-only flags, `ksmbd.mountd` exists and `alarm` is in `wheel`.
+  no vfat-only flags, `ksmbd.mountd` exists, `alarm` is in `wheel`, vim is the
+  default editor and iptables/nano are gone.
 
 ## Contributing
 

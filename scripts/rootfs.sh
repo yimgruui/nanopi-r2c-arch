@@ -340,6 +340,7 @@ extract_and_configure() {
     install_aur_packages
     configure_udevil
     configure_ksmbd
+    configure_default_editor
     prune_packages
 
     slim_rootfs
