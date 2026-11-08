@@ -27,7 +27,7 @@ mainline U-Boot → `boot.scr` → `Image` + initramfs + `rk3328-nanopi-r2c.dtb`
 Releases are published from GitHub Actions. Branch builds are prereleases
 (`test-<branch>-<run>`); default-branch builds are tagged
 `nanopi-r2c-arch-<date>-r<run>`. The nightly `check-arch` workflow rebuilds when
-the ALARM rootfs or the vendored `udevil`/`ksmbd-tools` sources change; package
+the ALARM rootfs or the vendored `ksmbd-tools` sources change; package
 bumps are committed back to the default branch automatically.
 
 ## Flash
@@ -69,13 +69,21 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
 
 ### Removable storage
 
-- `udevil` + `devmon` run as `alarm` and auto-mount hot-plugged media under
-  `/media`.
-- The stock udevil exFAT options contain the vfat-only `namecase=0`, which the
-  kernel exFAT driver rejects; the image ships fixed options
-  (`nosuid,nodev,noexec,noatime,uid=$UID,gid=$GID,umask=0022`).
-- `udevil` keeps its setuid bit (needed to mount without a password);
-  `allowed_users` is restricted to `alarm`.
+- A small udev + systemd automounter (`usb-mount@.service`) mounts USB block
+  devices on hot-plug. There is no setuid helper and no userspace daemon.
+- It requires neither a specific filesystem nor a label: the type comes from
+  `blkid`, and the mountpoint is `/media/<label>`, falling back to
+  `/media/<uuid>` and then `/media/usb-<kernel-name>`. Volumes that would share
+  a mountpoint get a numeric suffix instead of overwriting each other.
+- FAT/exFAT/NTFS are mounted with `uid=1000,gid=1000,umask=0022` so the
+  appliance user owns the files; exFAT is preened when its dirty bit is set and
+  vfat is checked with `fsck.vfat` before mounting. Every mount uses
+  `nosuid,nodev,noexec,noatime`.
+- Filesystem support follows the kernel: the stock ALARM kernel covers the
+  common types (ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...), while the minimal
+  kernel covers ext4/vfat/exFAT and NTFS through `ntfs-3g`. Other types work if
+  their kernel module or FUSE helper is installed.
+- Unplugging the device stops the unit and lazily unmounts the volume.
 
 ### SMB (installed, not enabled)
 
@@ -146,9 +154,10 @@ The builder refuses to produce an image when something boot-critical is wrong:
 - The stock kernel has the Motorcomm PHY driver (`CONFIG_MOTORCOMM_PHY`).
 - The initramfs contains (or the kernel has built in) the SD/MMC and ext4 boot
   path; missing modules are added to `MODULES` and regenerated once.
-- The appliance stack is complete: udevil is setuid with fixed exFAT options,
-  `ksmbd.mountd` exists while `ksmbd.service` stays disabled, `alarm` is in
-  `wheel`, vim is the default editor and nano is gone.
+- The appliance stack is complete: the USB automounter helper, udev rule and
+  unit are installed and syntax-checked, `ksmbd.mountd` exists while
+  `ksmbd.service` stays disabled, `alarm` is in `wheel`, vim is the default
+  editor and nano is gone.
 - The assembled image has a valid MBR, a byte-identical U-Boot payload,
   `/boot/boot.scr` and `rk3328-nanopi-r2c.dtb`.
 
@@ -170,13 +179,12 @@ scripts/
   chroot.sh               # arch-chroot helpers, initramfs verification
   kernel.sh               # minimal-kernel variant
   rootfs.sh               # rootfs download, network, zram, boot files
-  tuning.sh               # mirrors, upgrade, udevil, pruning
+  tuning.sh               # mirrors, upgrade, USB automounter, pruning
   check-updates.py        # nightly AUR/upstream version check
   fan-control.sh          # fan-monitor cross-build and install
   postprocess.sh          # inspect, shrink, checksums
   templates/              # boot.cmd, systemd units and helper scripts
 packaging/
-  udevil/                 # pinned PKGBUILD (AUR, aarch64)
   ksmbd-tools/            # pinned PKGBUILD (AUR, aarch64)
 vendor/
   alarmsigning.gpg        # ALARM rootfs signing key
@@ -200,7 +208,7 @@ on a branch (prerelease), and say whether hardware testing was done.
 ## Credits
 
 The image uses Trusted Firmware-A, U-Boot, Arch Linux ARM, USTC mirrors,
-`archlinuxcn`, `udevil`, `ksmbd-tools` and optionally
+`archlinuxcn`, `ksmbd-tools` and optionally
 `linux-nanopi-r2c-minimal`; see [NOTICE](NOTICE), [LICENSE_TFA.txt](LICENSE_TFA.txt),
 [SOURCE_INFO_TFA.txt](SOURCE_INFO_TFA.txt) and
 [SOURCE_OFFER_U_BOOT.txt](SOURCE_OFFER_U_BOOT.txt).

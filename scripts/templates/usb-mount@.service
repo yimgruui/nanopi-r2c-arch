@@ -1,0 +1,13 @@
+[Unit]
+Description=Automount USB storage device /dev/%i
+Documentation=file:///usr/local/sbin/usb-mount
+BindsTo=dev-%i.device
+After=dev-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# exFAT/vfat preen can take a while on a large volume after an unclean unplug.
+TimeoutStartSec=600
+ExecStart=/usr/local/sbin/usb-mount add %i
+ExecStop=/usr/local/sbin/usb-mount remove %i

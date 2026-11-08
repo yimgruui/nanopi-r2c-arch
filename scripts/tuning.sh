@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-# Appliance tuning: USTC mirrors, archlinuxcn, full upgrade, udevil,
-# udevil and image slimming. ksmbd-tools is installed but left disabled.
+# Appliance tuning: USTC mirrors, archlinuxcn, full upgrade, the generic USB
+# automounter and image slimming. ksmbd-tools is installed but left disabled.
 
 APPLIANCE_USER="${APPLIANCE_USER:-alarm}"
 APPLIANCE_UID="${APPLIANCE_UID:-1000}"
@@ -58,8 +58,8 @@ system_upgrade() {
 }
 
 install_appliance_packages() {
-    echo "    → Installing appliance packages (parted, exfatprogs, sudo)..."
-    run_chroot_pacman -S --needed parted exfatprogs sudo
+    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, sudo)..."
+    run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g sudo
 
     # Nanopi appliance user: passwordless sudo via wheel.
     run_arch_chroot usermod -aG wheel "$APPLIANCE_USER"
@@ -94,31 +94,22 @@ build_aur_package() {
 
 install_aur_packages() {
     local cache="$CACHE_DIR/aur-packages"
-    local -a to_build=()
-    local name
+    local name=ksmbd-tools
 
-    echo "    → Installing udevil and ksmbd-tools (vendored AUR packages)..."
+    echo "    → Installing ksmbd-tools (vendored AUR package)..."
     mkdir -p "$cache"
     rm -rf mnt/var/tmp/aur-pkgs
     install -d -m 0755 mnt/var/tmp/aur-pkgs
 
-    for name in udevil ksmbd-tools; do
-        if compgen -G "$cache/${name}-*.pkg.tar.*" >/dev/null; then
-            echo "    → Using cached $name package"
-            cp "$cache/${name}-"*.pkg.tar.* mnt/var/tmp/aur-pkgs/
-        else
-            to_build+=("$name")
-        fi
-    done
-
-    if [ "${#to_build[@]}" -gt 0 ]; then
+    if compgen -G "$cache/${name}-*.pkg.tar.*" >/dev/null; then
+        echo "    → Using cached $name package"
+        cp "$cache/${name}-"*.pkg.tar.* mnt/var/tmp/aur-pkgs/
+    else
         run_chroot_pacman -S --needed base-devel git meson ninja intltool gettext
 
-        for name in "${to_build[@]}"; do
-            build_aur_package "$name"
-            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* "$cache"/
-            cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* mnt/var/tmp/aur-pkgs/
-        done
+        build_aur_package "$name"
+        cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* "$cache"/
+        cp mnt/var/tmp/aur/"$name"/*.pkg.tar.* mnt/var/tmp/aur-pkgs/
 
         # Drop the build toolchain again; runtime deps (glib2, libnl) stay.
         run_chroot_pacman -Rns --noconfirm base-devel >/dev/null 2>&1 || true
@@ -130,24 +121,20 @@ install_aur_packages() {
     rm -rf mnt/var/tmp/aur-pkgs
 }
 
-configure_udevil() {
-    local conf="mnt/etc/udevil/udevil.conf"
+configure_usb_mount() {
+    echo "    → Installing generic USB automounter (any filesystem, any label)..."
 
-    echo "    → Configuring udevil (user $APPLIANCE_USER, exFAT fix)..."
-    if [ ! -f "$conf" ]; then
-        echo "Error: udevil did not install $conf" >&2
-        exit 1
-    fi
+    install -D -m 0755 "$TEMPLATES_DIR/usb-mount" mnt/usr/local/sbin/usb-mount
+    install -D -m 0644 "$TEMPLATES_DIR/usb-mount.conf" mnt/etc/usb-mount.conf
+    install -D -m 0644 "$TEMPLATES_DIR/usb-mount@.service" \
+        mnt/etc/systemd/system/usb-mount@.service
+    install -D -m 0644 "$TEMPLATES_DIR/90-usb-mount.rules" \
+        mnt/etc/udev/rules.d/90-usb-mount.rules
 
-    sed -i -E "s/^allowed_users[[:space:]]*=.*/allowed_users = ${APPLIANCE_USER}/" "$conf"
-
-    # The stock exFAT options contain vfat-only 'namecase=0', which the kernel
-    # exFAT driver rejects. Also give the appliance user clean permissions.
-    sed -i -E "s|^default_options_exfat.*|default_options_exfat = nosuid, noexec, nodev, noatime, uid=\$UID, gid=\$GID, umask=0022|" "$conf"
-    sed -i -E "s|^allowed_options_exfat.*|allowed_options_exfat = nosuid, noexec, nodev, noatime, uid=\$UID, gid=\$GID, umask=*, ro, rw, sync, flush, iocharset=*, remount, nonempty|" "$conf"
-
-    install -D -m 0644 "$TEMPLATES_DIR/devmon.service" mnt/etc/systemd/system/devmon.service
-    run_arch_chroot systemctl enable devmon.service
+    # Mounted files must belong to the appliance user, not to root.
+    sed -i -E \
+        "s/^OWNER_UID=.*/OWNER_UID=${APPLIANCE_UID}/; s/^OWNER_GID=.*/OWNER_GID=${APPLIANCE_GID}/" \
+        mnt/etc/usb-mount.conf
 }
 
 configure_default_editor() {
@@ -214,18 +201,41 @@ verify_appliance_stack() {
 
     local failures=0
 
-    if [ ! -u mnt/usr/bin/udevil ]; then
-        echo "       udevil: FAIL (missing or not setuid)" >&2
-        failures=1
+    if [ -x mnt/usr/local/sbin/usb-mount ] &&
+        [ -f mnt/etc/udev/rules.d/90-usb-mount.rules ] &&
+        [ -f mnt/etc/systemd/system/usb-mount@.service ]; then
+        echo "       usb automount: OK (udev + systemd, no setuid helper)"
     else
-        echo "       udevil: OK (setuid)"
+        echo "       usb automount: FAIL (helper, udev rule or unit missing)" >&2
+        failures=1
     fi
 
-    if grep -q 'namecase' mnt/etc/udevil/udevil.conf; then
-        echo "       udevil exFAT options: FAIL (namecase still present)" >&2
-        failures=1
+    if run_arch_chroot bash -n /usr/local/sbin/usb-mount; then
+        echo "       usb automount helper: OK (syntax)"
     else
-        echo "       udevil exFAT options: OK"
+        echo "       usb automount helper: FAIL (syntax)" >&2
+        failures=1
+    fi
+
+    if run_arch_chroot udevadm verify /etc/udev/rules.d/90-usb-mount.rules >/dev/null 2>&1; then
+        echo "       usb automount udev rule: OK (syntax)"
+    else
+        echo "       usb automount udev rule: FAIL (syntax)" >&2
+        failures=1
+    fi
+
+    if grep -q 'usb-mount@%k.service' mnt/etc/udev/rules.d/90-usb-mount.rules; then
+        echo "       usb automount rule: OK (hotplug -> usb-mount@.service)"
+    else
+        echo "       usb automount rule: FAIL (missing SYSTEMD_WANTS/RUN)" >&2
+        failures=1
+    fi
+
+    if [ ! -e mnt/usr/bin/udevil ] && [ ! -e mnt/usr/bin/devmon ]; then
+        echo "       udevil: OK (not installed)"
+    else
+        echo "       udevil: FAIL (udevil/devmon still installed)" >&2
+        failures=1
     fi
 
     # /usr/bin/ksmbd.mountd is an absolute symlink into /usr/lib/ksmbd-tools;

@@ -67,7 +67,7 @@ The workflow caches:
 | TF-A tree + BL31 | hash of `scripts/common.sh`, `scripts/trusted-firmware.sh` |
 | U-Boot tree + binaries | hash of `scripts/common.sh`, `scripts/bootloader.sh` |
 | ALARM rootfs tarball | the rootfs MD5 |
-| Built udevil/ksmbd-tools packages | hash of `packaging/**/PKGBUILD` |
+| Built ksmbd-tools package | hash of `packaging/**/PKGBUILD` |
 
 Cache misses only cost build time; the build always re-verifies the pinned
 TF-A/U-Boot commits, the rootfs MD5/GPG signature and rebuilds missing AUR
@@ -80,22 +80,16 @@ would change:
 
 1. **ALARM rootfs** — the current MD5 is compared with the last one stored in
    the `arch-md5-state-*` Actions cache.
-2. **Vendored AUR packages** — `scripts/check-updates.py` compares:
-   - `udevil` against the upstream `master` commit (the AUR package has a
-     static `2026.master` version, so the commit is what moves);
-   - `ksmbd-tools` against the AUR package version.
+2. **Vendored AUR packages** — `scripts/check-updates.py` compares
+   `ksmbd-tools` against the AUR package version.
 
-When a package changed, the script rewrites `packaging/*/PKGBUILD`
-(`_commit`/`pkgver` and the `sha256sums`), the workflow commits that as
-`github-actions[bot]` to the default branch, and then triggers the image
-build, so the new packages are compiled into the next image.
+When the package changed, the script rewrites
+`packaging/ksmbd-tools/PKGBUILD` (`pkgver` and the `sha256sums`), the workflow
+commits that as `github-actions[bot]` to the default branch, and then triggers
+the image build, so the new package is compiled into the next image.
 
 Notes:
 
-- `udevil` keeps `pkgver=2026.master`/`pkgrel=1` on purpose: it matches the AUR
-  package, so `yay` on the device does not report "local is newer". The source
-  commit is still refreshed, and the AUR cache key (`hashFiles` of the
-  PKGBUILDs) changes, so the image build recompiles it.
 - The new rootfs MD5 is saved only after the build trigger succeeds.
 - If the trigger still fails after three attempts and a package bump was just
   committed, the workflow reverts that commit and fails the run, so the next
@@ -162,9 +156,9 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 3. Arch Linux ARM rootfs downloaded over HTTP, checked against the MD5 **and**
    the ALARM GPG signature.
 4. `arch-chroot` configuration: USTC mirrors + archlinuxcn, full
-   `pacman -Syu`, network, LED/fan/zram services, udevil/ksmbd-tools built
-   from vendored PKGBUILDs (ksmbd service left disabled), user/editor
-   defaults, package pruning and stripping.
+   `pacman -Syu`, network, LED/fan/zram services, `ksmbd-tools` built from the
+   vendored PKGBUILD (ksmbd service left disabled), the generic USB automounter
+   installed, user/editor defaults, package pruning and stripping.
 5. Stock kernel gets a Motorcomm PHY check; the minimal variant replaces the
    kernel from the signed pacman repo.
 6. `/boot/boot.scr` generated, initramfs boot path verified (modules added and
@@ -188,7 +182,7 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 
 1. Trigger `build-image.yml` on a test branch and check the prerelease.
 2. Flash the stock image and verify: serial console, both NICs with DHCP, USB
-   hot-plug mount, exFAT read/write, fan curve; configure and start ksmbd
-   manually to test SMB.
+   hot-plug mount (ext4/vfat/exFAT/NTFS, labelled and unlabelled), fan curve;
+   configure and start ksmbd manually to test SMB.
 3. Merge to the default branch; the nightly `check-arch.yml` run will then
    publish the regular release.

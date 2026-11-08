@@ -1,0 +1,259 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Generic USB storage automounter for the NanoPi R2C image.
+#
+# usb-mount@.service calls this with a kernel device name (sda1, nvme0n1p1,
+# mmcblk0p1, ...).  Nothing is hard-coded to a filesystem type or a label:
+#
+#   - the type comes from blkid, so exFAT, vfat, ext4, NTFS, btrfs, XFS, ...
+#     all take the same path (support ultimately depends on the kernel and on
+#     FUSE helpers such as ntfs-3g);
+#   - the mountpoint is /media/<label>, falling back to /media/<uuid> and then
+#     to /media/usb-<kernel-name> when the volume has no label;
+#   - FAT/exFAT/NTFS get uid/gid/umask so the appliance user can write to the
+#     disk; POSIX filesystems keep their on-disk ownership;
+#   - exFAT and vfat are preened with fsck when needed, because neither has a
+#     journal (an unclean unplug would otherwise stay dirty forever);
+#   - everything is mounted with nosuid,nodev,noexec,noatime by default.
+#
+# Mounts are tracked in /run/usb-mount/<kernel-name> so that the ExecStop side
+# can detach the right mountpoint after the device has already disappeared.
+
+set -u
+
+CONFIG=/etc/usb-mount.conf
+# shellcheck disable=SC1090
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+MOUNT_ROOT="${MOUNT_ROOT:-/media}"
+OWNER_UID="${OWNER_UID:-1000}"
+OWNER_GID="${OWNER_GID:-1000}"
+BASE_OPTIONS="${BASE_OPTIONS:-nosuid,nodev,noexec,noatime}"
+STATE_DIR="${STATE_DIR:-/run/usb-mount}"
+
+log() {
+    if command -v logger >/dev/null 2>&1; then
+        logger -t usb-mount -- "$*" 2>/dev/null || true
+    fi
+    printf '%s\n' "$*" >&2
+}
+
+die() {
+    log "$*"
+    exit 1
+}
+
+valid_name() {
+    case "$1" in
+        '' | *[!A-Za-z0-9._-]*) return 1 ;;
+    esac
+    return 0
+}
+
+# Turn a volume label into one safe path component.  Slashes and whitespace
+# are the only characters that really get in the way on Linux; non-ASCII
+# labels are deliberately preserved (Chinese labels work fine).
+sanitize() {
+    printf '%s' "$1" |
+        sed -e 's|/|_|g' -e 's/[[:space:]]/_/g' -e 's/^\.*//' -e 's/\.*$//'
+}
+
+mount_options() {
+    case "$1" in
+        vfat | msdos | exfat | ntfs | ntfs3)
+            printf '%s,uid=%s,gid=%s,umask=0022' \
+                "$BASE_OPTIONS" "$OWNER_UID" "$OWNER_GID"
+            ;;
+        ext2 | ext3 | ext4)
+            printf '%s,errors=remount-ro' "$BASE_OPTIONS"
+            ;;
+        iso9660 | udf | squashfs)
+            printf 'ro,nosuid,nodev,noexec,noatime'
+            ;;
+        *)
+            printf '%s' "$BASE_OPTIONS"
+            ;;
+    esac
+}
+
+# Returns non-zero when the filesystem should be mounted read-only.
+preen() {
+    local dev="$1" type="$2" rc flags
+
+    case "$type" in
+        exfat)
+            command -v fsck.exfat >/dev/null 2>&1 || return 0
+            # Only run fsck when the exFAT VolumeDirty bit (boot sector offset
+            # 0x6A, bit 1) is set; a clean 1 TB volume otherwise costs several
+            # seconds on every hot-plug.
+            flags=$(dd if="$dev" bs=1 skip=106 count=2 status=none 2>/dev/null |
+                od -An -tu2 | tr -d ' \n')
+            if [ -n "$flags" ] && [ $((flags & 2)) -eq 0 ]; then
+                return 0
+            fi
+            fsck.exfat -p "$dev" >/dev/null 2>&1
+            rc=$?
+            if [ "$rc" -ge 4 ]; then
+                log "fsck.exfat found uncorrected errors on $dev (rc=$rc)"
+                return 1
+            fi
+            ;;
+        vfat)
+            command -v fsck.vfat >/dev/null 2>&1 || return 0
+            fsck.vfat -a "$dev" >/dev/null 2>&1
+            rc=$?
+            if [ "$rc" -ge 4 ]; then
+                log "fsck.vfat found uncorrected errors on $dev (rc=$rc)"
+                return 1
+            fi
+            ;;
+    esac
+
+    return 0
+}
+
+add_device() {
+    local name="$1" dev type label uuid base mp opts i ro err mounted t
+
+    valid_name "$name" || die "invalid device name: $name"
+    dev="/dev/$name"
+    [ -b "$dev" ] || die "$dev is not a block device"
+
+    type=$(blkid -s TYPE -o value "$dev" 2>/dev/null || true)
+    [ -n "$type" ] || die "$dev has no filesystem signature"
+
+    case "$type" in
+        swap | crypto_LUKS | LVM2_member | linux_raid_member | zfs_member | \
+            BitLocker | bcache | ceph | drbd | VMFS_volume_member)
+            log "skipping $dev ($type is not a data filesystem)"
+            return 0
+            ;;
+    esac
+
+    # A device that is already mounted (fstab, a manual mount, an earlier
+    # instance of this service) is left alone.
+    if findmnt -rn -S "$dev" >/dev/null 2>&1; then
+        log "$dev is already mounted; leaving it alone"
+        return 0
+    fi
+
+    label=$(blkid -s LABEL -o value "$dev" 2>/dev/null || true)
+    uuid=$(blkid -s UUID -o value "$dev" 2>/dev/null || true)
+
+    base=""
+    if [ -n "$label" ]; then
+        base=$(sanitize "$label")
+    fi
+    if [ -z "$base" ] && [ -n "$uuid" ]; then
+        base=$(sanitize "$uuid")
+    fi
+    [ -n "$base" ] || base="usb-$name"
+
+    # Reuse an empty directory, but never mount over data left on the
+    # mountpoint by a previous (non-lazy) unmount.
+    mp="$MOUNT_ROOT/$base"
+    i=2
+    while :; do
+        if mountpoint -q "$mp" 2>/dev/null; then
+            mp="$MOUNT_ROOT/$base-$i"
+            i=$((i + 1))
+            continue
+        fi
+        if [ -d "$mp" ] &&
+            [ -n "$(find "$mp" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]; then
+            mp="$MOUNT_ROOT/$base-$i"
+            i=$((i + 1))
+            continue
+        fi
+        break
+    done
+
+    rm -f "$STATE_DIR/$name"
+
+    opts=$(mount_options "$type")
+    ro=0
+    preen "$dev" "$type" || ro=1
+    if [ "$ro" -eq 1 ]; then
+        opts="ro,$opts"
+    fi
+
+    mkdir -p "$MOUNT_ROOT" "$mp" || die "cannot create mountpoint $mp"
+
+    err=$(mktemp)
+    mounted=0
+    if [ "$type" = ntfs ]; then
+        # Prefer the in-kernel ntfs3 driver; fall back to ntfs-3g (FUSE).
+        for t in ntfs3 ntfs; do
+            if mount -t "$t" -o "$opts" "$dev" "$mp" 2>"$err"; then
+                mounted=1
+                break
+            fi
+        done
+    else
+        if mount -t "$type" -o "$opts" "$dev" "$mp" 2>"$err"; then
+            mounted=1
+        fi
+    fi
+    if [ "$mounted" -eq 0 ]; then
+        # Last resort: let mount(8) probe the type (and any FUSE helper).
+        if mount -o "$opts" "$dev" "$mp" 2>"$err"; then
+            mounted=1
+        fi
+    fi
+
+    if [ "$mounted" -eq 0 ]; then
+        log "failed to mount $dev ($type)"
+        sed 's/^/    /' "$err" >&2 || true
+        rm -f "$err"
+        rmdir "$mp" 2>/dev/null || true
+        exit 1
+    fi
+    rm -f "$err"
+
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$mp" >"$STATE_DIR/$name"
+    log "mounted $dev [$type] at $mp"
+}
+
+remove_device() {
+    local name="$1" mp state
+
+    valid_name "$name" || die "invalid device name: $name"
+    state="$STATE_DIR/$name"
+    if [ ! -f "$state" ]; then
+        log "no mount state for $name"
+        return 0
+    fi
+
+    mp=$(cat "$state")
+    if [ -z "$mp" ]; then
+        rm -f "$state"
+        return 0
+    fi
+
+    if mountpoint -q "$mp" 2>/dev/null; then
+        if ! umount "$mp" 2>/dev/null; then
+            log "unmounting $mp lazily (device is gone or busy)"
+            umount -l "$mp" 2>/dev/null || log "could not unmount $mp"
+        fi
+    fi
+
+    rmdir "$mp" 2>/dev/null || true
+    rm -f "$state"
+    log "unmounted $mp"
+}
+
+case "${1:-}" in
+    add)
+        [ "$#" -eq 2 ] || die "usage: $0 add <kernel-name>"
+        add_device "$2"
+        ;;
+    remove)
+        [ "$#" -eq 2 ] || die "usage: $0 remove <kernel-name>"
+        remove_device "$2"
+        ;;
+    *)
+        die "usage: $0 add|remove <kernel-name>"
+        ;;
+esac

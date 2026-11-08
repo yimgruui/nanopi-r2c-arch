@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Bump the vendored AUR packages to their latest upstream versions.
+"""Bump the vendored ksmbd-tools package to the latest upstream version.
 
-- udevil: the AUR package has a static pkgver (2026.master), so track the
-  upstream master commit and refresh _commit + sha256sums. pkgver/pkgrel stay
-  unchanged so the installed version still matches the AUR package.
 - ksmbd-tools: follow the AUR package version and its release tarball.
 
 Prints a human-readable summary and writes changed=true|false + summary to
@@ -19,12 +16,7 @@ import sys
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-UDEVIL_PKGBUILD = os.path.join(ROOT, "packaging/udevil/PKGBUILD")
 KSMBD_PKGBUILD = os.path.join(ROOT, "packaging/ksmbd-tools/PKGBUILD")
-
-UDEVIL_GIT = "https://github.com/IgnorantGuru/udevil"
-UDEVIL_REF = "refs/heads/master"
-UDEVIL_TARBALL = "https://codeload.github.com/IgnorantGuru/udevil/tar.gz/{commit}"
 
 KSMBD_TARBALL = "https://github.com/cifsd-team/ksmbd-tools/archive/refs/tags/{version}.tar.gz"
 AUR_RPC = "https://aur.archlinux.org/rpc/v5/info?arg[]=ksmbd-tools"
@@ -80,28 +72,6 @@ def version_gt(candidate, current):
         return candidate != current
 
 
-def check_udevil(changes):
-    remote = subprocess.check_output(
-        ["git", "ls-remote", UDEVIL_GIT, UDEVIL_REF], text=True, timeout=TIMEOUT
-    ).split()[0]
-
-    text = read(UDEVIL_PKGBUILD)
-    match = re.search(r"^_commit=(\S+)$", text, re.MULTILINE)
-    if not match:
-        raise RuntimeError("missing _commit= in udevil PKGBUILD")
-    current = match.group(1)
-
-    if remote == current:
-        print(f"udevil: up to date ({current[:12]})")
-        return
-
-    digest = sha256(fetch(UDEVIL_TARBALL.format(commit=remote)))
-    text = replace_line(text, "_commit", remote)
-    text = replace_sums(text, digest)
-    write(UDEVIL_PKGBUILD, text)
-    changes.append(f"udevil {current[:12]} -> {remote[:12]}")
-
-
 def check_ksmbd(changes):
     payload = json.loads(fetch(AUR_RPC))
     entries = [item for item in payload.get("results", []) if item.get("Name") == "ksmbd-tools"]
@@ -134,7 +104,7 @@ def check_ksmbd(changes):
 def main():
     changes = []
 
-    for check in (check_udevil, check_ksmbd):
+    for check in (check_ksmbd,):
         try:
             check(changes)
         except Exception as error:  # keep the other package check running

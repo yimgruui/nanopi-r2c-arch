@@ -1,0 +1,14 @@
+# Generic USB storage automounter.
+#
+# Any filesystem, any label: the helper picks the mountpoint
+# (/media/<label>, then <uuid>, then usb-<kernel-name>) and the mount options.
+# Support for a given filesystem depends on the kernel (and on helpers such as
+# ntfs-3g); nothing here is tied to one type or one label.
+#
+# The unit is bound to the device unit, so unplugging it stops the service and
+# its ExecStop detaches the mountpoint.
+ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_TYPE}!="", TAG+="systemd", ENV{SYSTEMD_WANTS}+="usb-mount@%k.service"
+
+# Belt and braces: some kernels emit the remove event after the parent USB
+# device is gone, so make the stop explicit as well.
+ACTION=="remove", SUBSYSTEM=="block", SUBSYSTEMS=="usb", RUN+="/usr/bin/systemctl --no-block stop usb-mount@%k.service"

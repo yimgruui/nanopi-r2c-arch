@@ -75,7 +75,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packaging/udevil/PKGBUILD packaging/ksmbd-tools/PKGBUILD
+          git add packaging/ksmbd-tools/PKGBUILD
           git commit -m "Bump vendored AUR packages: ${{ steps.packages.outputs.summary }}"
           git push origin "HEAD:${{ github.event.repository.default_branch }}"
 

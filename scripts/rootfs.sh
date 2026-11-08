@@ -338,7 +338,7 @@ extract_and_configure() {
 
     install_appliance_packages
     install_aur_packages
-    configure_udevil
+    configure_usb_mount
     configure_default_editor
     prune_packages
 
