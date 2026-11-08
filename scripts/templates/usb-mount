@@ -61,7 +61,11 @@ sanitize() {
 
 mount_options() {
     case "$1" in
-        vfat | msdos | exfat | ntfs | ntfs3)
+        vfat | msdos)
+            printf '%s,uid=%s,gid=%s,umask=0022,iocharset=utf8' \
+                "$BASE_OPTIONS" "$OWNER_UID" "$OWNER_GID"
+            ;;
+        exfat | ntfs | ntfs3)
             printf '%s,uid=%s,gid=%s,umask=0022' \
                 "$BASE_OPTIONS" "$OWNER_UID" "$OWNER_GID"
             ;;

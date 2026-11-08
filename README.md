@@ -79,13 +79,12 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
   appliance user owns the files; exFAT is preened when its dirty bit is set and
   vfat is checked with `fsck.vfat` before mounting. Every mount uses
   `nosuid,nodev,noexec,noatime`.
-- NTFS uses the in-kernel `ntfs3` driver when the kernel provides it (stock
-  image) and falls back to `ntfs-3g` otherwise (minimal image). `ntfsprogs` is
-  installed too, so `mkntfs`/`ntfsfix` are available on the appliance.
+- NTFS uses the in-kernel `ntfs3` driver (the minimal kernel now ships it too)
+  and falls back to `ntfs-3g`; `ntfsprogs` provides `mkntfs`/`ntfsfix`.
 - Filesystem support follows the kernel: the stock ALARM kernel covers the
-  common types (ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...), while the minimal
-  kernel covers ext4/vfat/exFAT and NTFS through `ntfs-3g`. Other types work if
-  their kernel module or FUSE helper is installed.
+  common types (ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...), and the minimal
+  kernel additionally ships NTFS3, btrfs, XFS, F2FS, ISO9660/UDF, HFS+ and
+  SquashFS modules. VFAT is mounted with `iocharset=utf8`.
 - Unplugging the device stops the unit and lazily unmounts the volume.
 - `ksmbd.service` has a drop-in ordering it after `usb-mount@sda1.service`, so
   a configured SMB share is not started before the data disk is mounted.
@@ -166,7 +165,9 @@ The builder refuses to produce an image when something boot-critical is wrong:
   path; missing modules are added to `MODULES` and regenerated once.
 - The appliance stack is complete: the USB automounter helper, udev rule, unit
   and ksmbd ordering drop-in are installed and syntax-checked, the NTFS tools
-  (`ntfs-3g`, `ntfsprogs`) are present, `ksmbd.mountd` exists while
+  (`ntfs-3g`, `ntfsprogs`) are present, and the minimal kernel ships the
+  filesystem modules the automounter documents (NTFS3, btrfs, XFS, F2FS,
+  ISO9660, UDF, HFS+, SquashFS, nls_cp936). `ksmbd.mountd` exists while
   `ksmbd.service` stays disabled, `alarm` is in `wheel`, vim is the default
   editor and nano is gone.
 - The assembled image has a valid MBR, a byte-identical U-Boot payload,

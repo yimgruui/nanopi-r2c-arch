@@ -242,15 +242,16 @@ jobs:
               (UUID/kernel-name fallback), owned by `alarm`, with
               `nosuid,nodev,noexec,noatime`; exFAT/vfat are fsck-preened and
               unplugging detaches the mount safely.
-            - NTFS via kernel `ntfs3` (stock) or `ntfs-3g` (minimal);
-              `ntfsprogs` provides `mkntfs`/`ntfsfix`.
+            - NTFS via the in-kernel `ntfs3` driver (stock and minimal);
+              `ntfs-3g` remains a fallback and `ntfsprogs` provides
+              `mkntfs`/`ntfsfix`.
             - When SMB is enabled, `ksmbd` is ordered after the USB mount.
             - `udevil`/`devmon` are no longer installed or used.
 
             **Filesystem support** follows the kernel: the stock image covers
-            ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...; the minimal image covers
-            ext4, vfat, exFAT and NTFS through `ntfs-3g`. Other types need their
-            kernel module or FUSE helper.
+            ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...; the minimal image now
+            also ships NTFS3, btrfs, XFS, F2FS, ISO9660/UDF, HFS+ and SquashFS
+            modules. Other types need their kernel module or FUSE helper.
 
             **Verify:** `sha256sum -c SHA256SUMS`
 
