@@ -27,7 +27,8 @@ mainline U-Boot → `boot.scr` → `Image` + initramfs + `rk3328-nanopi-r2c.dtb`
 Releases are published from GitHub Actions. Branch builds are prereleases
 (`test-<branch>-<run>`); default-branch builds are tagged
 `nanopi-r2c-arch-<date>-r<run>`. The nightly `check-arch` workflow rebuilds when
-the ALARM rootfs changes.
+the ALARM rootfs or the vendored `udevil`/`ksmbd-tools` sources change; package
+bumps are committed back to the default branch automatically.
 
 ## Flash
 
@@ -170,6 +171,7 @@ scripts/
   kernel.sh               # minimal-kernel variant
   rootfs.sh               # rootfs download, network, zram, boot files
   tuning.sh               # mirrors, upgrade, udevil, pruning
+  check-updates.py        # nightly AUR/upstream version check
   fan-control.sh          # fan-monitor cross-build and install
   postprocess.sh          # inspect, shrink, checksums
   templates/              # boot.cmd, systemd units and helper scripts
@@ -182,7 +184,7 @@ vendor/
   fan-monitor/            # vendored fan control daemon
 .github/workflows/
   build-image.yml         # manual build + release
-  check-arch.yml          # nightly ALARM rootfs check
+  check-arch.yml          # nightly rootfs + AUR check, bump and build trigger
 ```
 
 ## AI disclosure

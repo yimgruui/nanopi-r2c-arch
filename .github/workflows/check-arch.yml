@@ -1,4 +1,4 @@
-name: Check for new Arch release
+name: Check for updates
 
 on:
   schedule:
@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       should_force_build:
-        description: Trigger an image build even if the rootfs MD5 is unchanged
+        description: Trigger an image build even if nothing changed
         type: boolean
         default: false
 
 permissions:
-  contents: read
+  contents: write
   actions: write
 
 concurrency:
@@ -22,13 +22,18 @@ env:
   ARCH_ROOTFS_MD5_URL: http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
 
 jobs:
-  poll:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
       - name: Read current rootfs MD5
-        id: current_md5
+        id: rootfs
         run: |
           set -euo pipefail
           current=$(curl -fsSL "$ARCH_ROOTFS_MD5_URL" | awk '{print $1}')
@@ -36,24 +41,22 @@ jobs:
           echo "value=$current" >> "$GITHUB_OUTPUT"
           echo "Current ALARM rootfs MD5: $current"
 
-      - name: Restore last seen MD5
+      - name: Restore last seen rootfs MD5
         uses: actions/cache/restore@v5
         with:
           path: arch-state
-          key: arch-md5-state-${{ steps.current_md5.outputs.value }}
+          key: arch-md5-state-${{ steps.rootfs.outputs.value }}
           restore-keys: |
             arch-md5-state-
 
-      - name: Compare with last seen MD5
+      - name: Compare rootfs MD5
         id: arch_md5
         run: |
           set -euo pipefail
-          current="${{ steps.current_md5.outputs.value }}"
+          current="${{ steps.rootfs.outputs.value }}"
           stored=$(cat arch-state/last_md5.txt 2>/dev/null || true)
 
           echo "current=$current" >> "$GITHUB_OUTPUT"
-          echo "stored=$stored" >> "$GITHUB_OUTPUT"
-
           if [ "$current" != "$stored" ]; then
             echo "has_changed=true" >> "$GITHUB_OUTPUT"
             echo "Rootfs MD5 changed: ${stored:-<none>} -> $current"
@@ -62,28 +65,49 @@ jobs:
             echo "Rootfs MD5 unchanged: $current"
           fi
 
-      - name: Record new MD5
+      - name: Check vendored AUR packages
+        id: packages
+        run: python3 scripts/check-updates.py
+
+      - name: Commit package updates
+        if: steps.packages.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/udevil/PKGBUILD packaging/ksmbd-tools/PKGBUILD
+          git commit -m "Bump vendored AUR packages: ${{ steps.packages.outputs.summary }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+
+      - name: Trigger image build
+        if: steps.arch_md5.outputs.has_changed == 'true' || steps.packages.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.should_force_build)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if gh workflow run build-image.yml \
+              --repo "${{ github.repository }}" \
+              --ref "${{ github.event.repository.default_branch }}" \
+              -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
+              -f "should_publish_release=true"; then
+              echo "Triggered image build (attempt $attempt)"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Error: could not trigger build-image.yml" >&2
+          exit 1
+
+      # Saved only after a successful trigger, so a failed trigger is retried
+      # on the next run instead of being silently remembered.
+      - name: Record new rootfs MD5
         if: steps.arch_md5.outputs.has_changed == 'true'
         run: |
           mkdir -p arch-state
           echo "${{ steps.arch_md5.outputs.current }}" > arch-state/last_md5.txt
 
-      - name: Trigger image build
-        if: steps.arch_md5.outputs.has_changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.should_force_build)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          gh workflow run build-image.yml \
-            --repo "${{ github.repository }}" \
-            --ref "${{ github.event.repository.default_branch }}" \
-            -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
-            -f "should_publish_release=true"
-          echo "Triggered build for rootfs MD5 ${{ steps.arch_md5.outputs.current }}"
-
-      # Save only after a successful trigger so a failed trigger is retried the
-      # next day instead of being silently remembered.
-      - name: Save new MD5
+      - name: Save rootfs MD5
         if: steps.arch_md5.outputs.has_changed == 'true'
         uses: actions/cache/save@v5
         with:

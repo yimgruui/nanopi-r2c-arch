@@ -11,7 +11,7 @@ Two workflows drive everything:
 | Workflow | Trigger | Purpose |
 |---|---|---|
 | `build-image.yml` | manual (`workflow_dispatch`) | Build stock + minimal images, publish a release |
-| `check-arch.yml` | schedule (daily 20:00 UTC / 04:00 Asia/Shanghai) or manual | Poll the ALARM rootfs MD5 and trigger `build-image.yml` when it changes |
+| `check-arch.yml` | schedule (daily 20:00 UTC / 04:00 Asia/Shanghai) or manual | Poll the ALARM rootfs and the vendored AUR packages, bump/commit changes and trigger `build-image.yml` |
 
 ### Requirements
 
@@ -73,20 +73,36 @@ Cache misses only cost build time; the build always re-verifies the pinned
 TF-A/U-Boot commits, the rootfs MD5/GPG signature and rebuilds missing AUR
 packages.
 
-### Nightly rootfs check
+### Nightly update check
 
-`check-arch.yml` stores the last seen rootfs MD5 in an Actions cache named
-`arch-md5-state-<md5>`:
+`check-arch.yml` runs daily and triggers `build-image.yml` whenever the image
+would change:
 
-1. Fetch the current MD5 from `os.archlinuxarm.org`.
-2. Restore the most recent `arch-md5-state-*` cache.
-3. If the MD5 changed, trigger `build-image.yml` on the default branch.
-4. Save the new MD5 **after** a successful trigger, so a failed trigger is
-   retried on the next run.
+1. **ALARM rootfs** — the current MD5 is compared with the last one stored in
+   the `arch-md5-state-*` Actions cache.
+2. **Vendored AUR packages** — `scripts/check-updates.py` compares:
+   - `udevil` against the upstream `master` commit (the AUR package has a
+     static `2026.master` version, so the commit is what moves);
+   - `ksmbd-tools` against the AUR package version.
 
-Manual runs accept `should_force_build=true` to rebuild even when the MD5 is
-unchanged. Every run also prunes old workflow history, keeping the 3 newest
-runs of `check-arch.yml` and `build-image.yml` (release assets are unaffected).
+When a package changed, the script rewrites `packaging/*/PKGBUILD`
+(`_commit`/`pkgver` and the `sha256sums`), the workflow commits that as
+`github-actions[bot]` to the default branch, and then triggers the image
+build, so the new packages are compiled into the next image.
+
+Notes:
+
+- `udevil` keeps `pkgver=2026.master`/`pkgrel=1` on purpose: it matches the AUR
+  package, so `yay` on the device does not report "local is newer". The source
+  commit is still refreshed, and the AUR cache key (`hashFiles` of the
+  PKGBUILDs) changes, so the image build recompiles it.
+- The new rootfs MD5 is saved only after the build trigger succeeds, so a
+  failed trigger is retried on the next run.
+- `should_force_build=true` rebuilds even when nothing changed.
+- The job has `contents: write` (to commit the bumps) and `actions: write`
+  (to trigger the build and prune runs).
+- Every run prunes old workflow history, keeping the 3 newest runs of
+  `check-arch.yml` and `build-image.yml` (release assets are unaffected).
 
 ## Local build (optional)
 
