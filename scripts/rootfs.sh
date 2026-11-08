@@ -339,6 +339,7 @@ extract_and_configure() {
     install_appliance_packages
     install_aur_packages
     configure_usb_mount
+    configure_zsh
     configure_default_editor
     prune_packages
 

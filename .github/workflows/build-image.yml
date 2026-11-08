@@ -246,6 +246,9 @@ jobs:
               `ntfs-3g` remains a fallback and `ntfsprogs` provides
               `mkntfs`/`ntfsfix`.
             - When SMB is enabled, `ksmbd` is ordered after the USB mount.
+            - `zsh` for `alarm` and `root` with syntax highlighting,
+              autosuggestions and completion; ANSI-only prompts, no extra
+              fonts.
             - `udevil`/`devmon` are no longer installed or used.
 
             **Filesystem support** follows the kernel: the stock image covers

@@ -1,0 +1,33 @@
+# ~/.zshrc - ANSI-only shell setup for the NanoPi R2C.
+# No powerline/Nerd Font glyphs are required.
+
+HISTFILE=~/.zsh_history
+HISTSIZE=20000
+SAVEHIST=20000
+setopt append_history share_history hist_ignore_dups hist_ignore_space
+setopt hist_reduce_blanks autocd no_beep
+
+# Completion: official extra completions plus menu selection.
+fpath=(/usr/share/zsh-completions $fpath)
+autoload -Uz compinit && compinit -i
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{yellow}%d%f'
+
+# Type-ahead syntax highlighting and history autosuggestions.
+source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
+
+# Green for normal users, red for root; blue for the current directory.
+if (( UID == 0 )); then
+    PROMPT='%F{red}%n@%m%f %F{blue}%~%f %# '
+else
+    PROMPT='%F{green}%n@%m%f %F{blue}%~%f %# '
+fi
+
+alias ls='ls --color=auto'
+alias ll='ls -alF --color=auto'
+alias grep='grep --color=auto'
+alias ip='ip -color=auto'

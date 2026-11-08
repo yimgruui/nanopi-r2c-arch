@@ -89,6 +89,17 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
 - `ksmbd.service` has a drop-in ordering it after `usb-mount@sda1.service`, so
   a configured SMB share is not started before the data disk is mounted.
 
+### Shell
+
+- `zsh` is the login shell for both `alarm` and `root`, with
+  `zsh-syntax-highlighting`, `zsh-autosuggestions` and `zsh-completions`
+  installed.
+- Type-ahead highlighting, grey history suggestions (`→` or `Ctrl+E` to
+  accept) and a Tab completion menu work over plain SSH.
+- Prompts use ANSI colors only (green for `alarm`, red for `root`); no extra
+  fonts or powerline glyphs are needed.
+- Config lives in `/home/alarm/.zshrc` and `/root/.zshrc`.
+
 ### SMB (installed, not enabled)
 
 `ksmbd-tools` is installed, but **no share is configured and the service is not
@@ -164,7 +175,8 @@ The builder refuses to produce an image when something boot-critical is wrong:
 - The initramfs contains (or the kernel has built in) the SD/MMC and ext4 boot
   path; missing modules are added to `MODULES` and regenerated once.
 - The appliance stack is complete: the USB automounter helper, udev rule, unit
-  and ksmbd ordering drop-in are installed and syntax-checked, the NTFS tools
+  and ksmbd ordering drop-in are installed and syntax-checked, zsh is the login
+  shell for `alarm` and `root` with its plugins and `.zshrc`, the NTFS tools
   (`ntfs-3g`, `ntfsprogs`) are present, and the minimal kernel ships the
   filesystem modules the automounter documents (NTFS3, btrfs, XFS, F2FS,
   ISO9660, UDF, HFS+, SquashFS, nls_cp936). `ksmbd.mountd` exists while
@@ -191,7 +203,7 @@ scripts/
   chroot.sh               # arch-chroot helpers, initramfs verification
   kernel.sh               # minimal-kernel variant
   rootfs.sh               # rootfs download, network, zram, boot files
-  tuning.sh               # mirrors, upgrade, USB automounter, pruning
+  tuning.sh               # mirrors, upgrade, USB automounter, zsh, pruning
   check-updates.py        # nightly AUR/upstream version check
   fan-control.sh          # fan-monitor cross-build and install
   postprocess.sh          # inspect, shrink, checksums

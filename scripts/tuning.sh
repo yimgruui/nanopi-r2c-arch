@@ -58,8 +58,9 @@ system_upgrade() {
 }
 
 install_appliance_packages() {
-    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, ntfsprogs, sudo)..."
-    run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g ntfsprogs sudo
+    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, ntfsprogs, zsh, sudo)..."
+    run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g ntfsprogs \
+        zsh zsh-syntax-highlighting zsh-autosuggestions zsh-completions sudo
 
     # Nanopi appliance user: passwordless sudo via wheel.
     run_arch_chroot usermod -aG wheel "$APPLIANCE_USER"
@@ -137,6 +138,17 @@ configure_usb_mount() {
     sed -i -E \
         "s/^OWNER_UID=.*/OWNER_UID=${APPLIANCE_UID}/; s/^OWNER_GID=.*/OWNER_GID=${APPLIANCE_GID}/" \
         mnt/etc/usb-mount.conf
+}
+
+configure_zsh() {
+    echo "    → Installing zsh setup for $APPLIANCE_USER and root..."
+
+    install -D -m 0644 "$TEMPLATES_DIR/zshrc" "mnt/home/$APPLIANCE_USER/.zshrc"
+    install -D -m 0644 "$TEMPLATES_DIR/zshrc" mnt/root/.zshrc
+    chown "$APPLIANCE_UID:$APPLIANCE_GID" "mnt/home/$APPLIANCE_USER/.zshrc"
+
+    run_arch_chroot usermod -s /usr/bin/zsh "$APPLIANCE_USER"
+    run_arch_chroot usermod -s /usr/bin/zsh root
 }
 
 configure_default_editor() {
@@ -245,6 +257,31 @@ verify_appliance_stack() {
         echo "       udevil: OK (not installed)"
     else
         echo "       udevil: FAIL (udevil/devmon still installed)" >&2
+        failures=1
+    fi
+
+    if [ -x mnt/usr/bin/zsh ] &&
+        [ -f mnt/usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ] &&
+        [ -f mnt/usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ] &&
+        [ -f "mnt/home/$APPLIANCE_USER/.zshrc" ] && [ -f mnt/root/.zshrc ]; then
+        echo "       zsh: OK (highlighting + autosuggestions, alarm and root)"
+    else
+        echo "       zsh: FAIL (packages, plugins or .zshrc missing)" >&2
+        failures=1
+    fi
+
+    if grep -qE "^${APPLIANCE_USER}:.*:/usr/bin/zsh$" mnt/etc/passwd &&
+        grep -qE '^root:.*:/usr/bin/zsh$' mnt/etc/passwd; then
+        echo "       zsh login shells: OK (alarm, root)"
+    else
+        echo "       zsh login shells: FAIL (alarm/root still use another shell)" >&2
+        failures=1
+    fi
+
+    if run_arch_chroot zsh -n /root/.zshrc; then
+        echo "       zsh rc: OK (syntax)"
+    else
+        echo "       zsh rc: FAIL (syntax)" >&2
         failures=1
     fi
 
