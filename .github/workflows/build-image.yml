@@ -235,6 +235,23 @@ jobs:
           prerelease: ${{ steps.release.outputs.prerelease }}
           generate_release_notes: false
           body: |
+            **Highlights**
+
+            - Generic USB automounter: any filesystem, any label, with no
+              udevil or setuid helper. Volumes mount at `/media/<label>`
+              (UUID/kernel-name fallback), owned by `alarm`, with
+              `nosuid,nodev,noexec,noatime`; exFAT/vfat are fsck-preened and
+              unplugging detaches the mount safely.
+            - NTFS via kernel `ntfs3` (stock) or `ntfs-3g` (minimal);
+              `ntfsprogs` provides `mkntfs`/`ntfsfix`.
+            - When SMB is enabled, `ksmbd` is ordered after the USB mount.
+            - `udevil`/`devmon` are no longer installed or used.
+
+            **Filesystem support** follows the kernel: the stock image covers
+            ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...; the minimal image covers
+            ext4, vfat, exFAT and NTFS through `ntfs-3g`. Other types need their
+            kernel module or FUSE helper.
+
             **Verify:** `sha256sum -c SHA256SUMS`
 
             - `nanopi-r2c-arch-*.img.xz`: stock Arch Linux ARM `linux-aarch64`

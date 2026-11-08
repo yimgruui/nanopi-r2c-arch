@@ -58,8 +58,8 @@ system_upgrade() {
 }
 
 install_appliance_packages() {
-    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, sudo)..."
-    run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g sudo
+    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, ntfsprogs, sudo)..."
+    run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g ntfsprogs sudo
 
     # Nanopi appliance user: passwordless sudo via wheel.
     run_arch_chroot usermod -aG wheel "$APPLIANCE_USER"
@@ -130,6 +130,8 @@ configure_usb_mount() {
         mnt/etc/systemd/system/usb-mount@.service
     install -D -m 0644 "$TEMPLATES_DIR/90-usb-mount.rules" \
         mnt/etc/udev/rules.d/90-usb-mount.rules
+    install -D -m 0644 "$TEMPLATES_DIR/ksmbd-usb-mount.conf" \
+        mnt/etc/systemd/system/ksmbd.service.d/usb-mount.conf
 
     # Mounted files must belong to the appliance user, not to root.
     sed -i -E \
@@ -203,10 +205,18 @@ verify_appliance_stack() {
 
     if [ -x mnt/usr/local/sbin/usb-mount ] &&
         [ -f mnt/etc/udev/rules.d/90-usb-mount.rules ] &&
-        [ -f mnt/etc/systemd/system/usb-mount@.service ]; then
+        [ -f mnt/etc/systemd/system/usb-mount@.service ] &&
+        [ -f mnt/etc/systemd/system/ksmbd.service.d/usb-mount.conf ]; then
         echo "       usb automount: OK (udev + systemd, no setuid helper)"
     else
-        echo "       usb automount: FAIL (helper, udev rule or unit missing)" >&2
+        echo "       usb automount: FAIL (helper, udev rule, unit or ksmbd drop-in missing)" >&2
+        failures=1
+    fi
+
+    if run_arch_chroot test -x /usr/bin/mkntfs; then
+        echo "       ntfs tools: OK (ntfs-3g + ntfsprogs)"
+    else
+        echo "       ntfs tools: FAIL (mkntfs missing)" >&2
         failures=1
     fi
 

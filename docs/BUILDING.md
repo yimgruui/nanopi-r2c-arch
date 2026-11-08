@@ -158,7 +158,8 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 4. `arch-chroot` configuration: USTC mirrors + archlinuxcn, full
    `pacman -Syu`, network, LED/fan/zram services, `ksmbd-tools` built from the
    vendored PKGBUILD (ksmbd service left disabled), the generic USB automounter
-   installed, user/editor defaults, package pruning and stripping.
+   installed (`ntfs-3g`/`ntfsprogs`, ksmbd ordering drop-in), user/editor
+   defaults, package pruning and stripping.
 5. Stock kernel gets a Motorcomm PHY check; the minimal variant replaces the
    kernel from the signed pacman repo.
 6. `/boot/boot.scr` generated, initramfs boot path verified (modules added and
@@ -182,7 +183,8 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 
 1. Trigger `build-image.yml` on a test branch and check the prerelease.
 2. Flash the stock image and verify: serial console, both NICs with DHCP, USB
-   hot-plug mount (ext4/vfat/exFAT/NTFS, labelled and unlabelled), fan curve;
-   configure and start ksmbd manually to test SMB.
+   hot-plug mount (ext4/vfat/exFAT/NTFS, labelled and unlabelled), NTFS
+   formatting with `mkntfs`, fan curve; configure and start ksmbd manually to
+   test SMB.
 3. Merge to the default branch; the nightly `check-arch.yml` run will then
    publish the regular release.

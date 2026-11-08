@@ -1,7 +1,11 @@
 [Unit]
 Description=Automount USB storage device /dev/%i
 Documentation=file:///usr/local/sbin/usb-mount
-BindsTo=dev-%i.device
+# Skip cleanly when the kernel name does not exist (for example a Wants= from
+# ksmbd when no disk is plugged in).  Do not add BindsTo= here: binding to a
+# missing device unit makes systemd wait for the device timeout instead of
+# skipping.  Unplugging is handled by the udev remove rule in 90-usb-mount.rules.
+ConditionPathExists=/dev/%i
 After=dev-%i.device
 
 [Service]
