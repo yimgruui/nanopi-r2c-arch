@@ -96,8 +96,10 @@ Notes:
   package, so `yay` on the device does not report "local is newer". The source
   commit is still refreshed, and the AUR cache key (`hashFiles` of the
   PKGBUILDs) changes, so the image build recompiles it.
-- The new rootfs MD5 is saved only after the build trigger succeeds, so a
-  failed trigger is retried on the next run.
+- The new rootfs MD5 is saved only after the build trigger succeeds.
+- If the trigger still fails after three attempts and a package bump was just
+  committed, the workflow reverts that commit and fails the run, so the next
+  scheduled run detects the update again and retries.
 - `should_force_build=true` rebuilds even when nothing changed.
 - The job has `contents: write` (to commit the bumps) and `actions: write`
   (to trigger the build and prune runs).

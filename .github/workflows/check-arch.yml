@@ -80,11 +80,12 @@ jobs:
           git push origin "HEAD:${{ github.event.repository.default_branch }}"
 
       - name: Trigger image build
+        id: trigger
         if: steps.arch_md5.outputs.has_changed == 'true' || steps.packages.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.should_force_build)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           for attempt in 1 2 3; do
             if gh workflow run build-image.yml \
               --repo "${{ github.repository }}" \
@@ -92,23 +93,43 @@ jobs:
               -f "arch_md5=${{ steps.arch_md5.outputs.current }}" \
               -f "should_publish_release=true"; then
               echo "Triggered image build (attempt $attempt)"
+              echo "failed=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             sleep 15
           done
-          echo "Error: could not trigger build-image.yml" >&2
+          echo "::error::could not trigger build-image.yml after 3 attempts"
+          echo "failed=true" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      # If the build could not be triggered after a package bump, revert the
+      # bump so the next scheduled run detects the update again and retries.
+      - name: Roll back package bump
+        if: steps.trigger.outputs.failed == 'true' && steps.packages.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git revert --no-edit HEAD
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
+          echo "::warning::build trigger failed; reverted the package bump so the next run retries"
+
+      - name: Fail job after trigger failure
+        if: steps.trigger.outputs.failed == 'true'
+        run: |
+          echo "Error: build trigger failed" >&2
           exit 1
 
       # Saved only after a successful trigger, so a failed trigger is retried
       # on the next run instead of being silently remembered.
       - name: Record new rootfs MD5
-        if: steps.arch_md5.outputs.has_changed == 'true'
+        if: steps.arch_md5.outputs.has_changed == 'true' && steps.trigger.outputs.failed != 'true'
         run: |
           mkdir -p arch-state
           echo "${{ steps.arch_md5.outputs.current }}" > arch-state/last_md5.txt
 
       - name: Save rootfs MD5
-        if: steps.arch_md5.outputs.has_changed == 'true'
+        if: steps.arch_md5.outputs.has_changed == 'true' && steps.trigger.outputs.failed != 'true'
         uses: actions/cache/save@v5
         with:
           path: arch-state
