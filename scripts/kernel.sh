@@ -103,14 +103,16 @@ verify_minimal_kernel() {
     # The image's generic automounter promises more than ext4/VFAT/exFAT;
     # refuse to build a minimal image with a kernel that lacks these modules.
     local fs missing=()
-    for fs in ntfs3 btrfs xfs f2fs hfs hfsplus isofs udf squashfs; do
+    for fs in ntfs3 btrfs xfs f2fs; do
         if ! find mnt/usr/lib/modules -path "*/kernel/fs/$fs/*.ko*" -print -quit | grep -q .; then
             missing+=("$fs")
         fi
     done
-    if ! find mnt/usr/lib/modules -path '*/kernel/fs/nls/nls_cp936.ko*' -print -quit | grep -q .; then
-        missing+=("nls_cp936")
-    fi
+    for fs in nls_cp936 nls_cp950; do
+        if ! find mnt/usr/lib/modules -path "*/kernel/fs/nls/$fs.ko*" -print -quit | grep -q .; then
+            missing+=("$fs")
+        fi
+    done
     if [ "${#missing[@]}" -gt 0 ]; then
         echo "Error: minimal kernel is missing USB-media filesystem modules: ${missing[*]}" >&2
         echo "       Update linux-nanopi-r2c-minimal or pin R2C_KERNEL_PKGVER." >&2

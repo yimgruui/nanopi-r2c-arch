@@ -83,8 +83,9 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
   and falls back to `ntfs-3g`; `ntfsprogs` provides `mkntfs`/`ntfsfix`.
 - Filesystem support follows the kernel: the stock ALARM kernel covers the
   common types (ext4, vfat, exFAT, NTFS3, btrfs, XFS, ...), and the minimal
-  kernel additionally ships NTFS3, btrfs, XFS, F2FS, ISO9660/UDF, HFS+ and
-  SquashFS modules. VFAT is mounted with `iocharset=utf8`.
+  kernel ships the common disk formats NTFS3, btrfs, XFS and F2FS. HFS+/ISO9660/
+  UDF/SquashFS are intentionally omitted to keep the package small. VFAT is
+  mounted with `iocharset=utf8`.
 - Unplugging the device stops the unit and lazily unmounts the volume.
 - `ksmbd.service` has a drop-in ordering it after `usb-mount@sda1.service`, so
   a configured SMB share is not started before the data disk is mounted.
@@ -179,7 +180,7 @@ The builder refuses to produce an image when something boot-critical is wrong:
   shell for `alarm` and `root` with its plugins and `.zshrc`, the NTFS tools
   (`ntfs-3g`, `ntfsprogs`) are present, and the minimal kernel ships the
   filesystem modules the automounter documents (NTFS3, btrfs, XFS, F2FS,
-  ISO9660, UDF, HFS+, SquashFS, nls_cp936). `ksmbd.mountd` exists while
+  nls_cp936, nls_cp950). `ksmbd.mountd` exists while
   `ksmbd.service` stays disabled, `alarm` is in `wheel`, vim is the default
   editor and nano is gone.
 - The assembled image has a valid MBR, a byte-identical U-Boot payload,
