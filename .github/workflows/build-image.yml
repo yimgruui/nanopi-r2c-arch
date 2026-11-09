@@ -249,6 +249,8 @@ jobs:
             - `zsh` for `alarm` and `root` with syntax highlighting,
               autosuggestions and completion; ANSI-only prompts, no extra
               fonts.
+            - ALARM `[aur]` is kept for `qt6-base-headless` (used by
+              `qbittorrent-nox`).
             - `udevil`/`devmon` are no longer installed or used.
 
             **Filesystem support** follows the kernel: the stock image covers

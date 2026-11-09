@@ -125,8 +125,9 @@ exposing the share beyond a trusted LAN.
 ### Packages and system
 
 - pacman uses the **USTC** mirrors for Arch Linux ARM and `archlinuxcn`; the
-  archlinuxcn keyring is installed and locally signed. The unused ALARM `[aur]`
-  repository is removed.
+  archlinuxcn keyring is installed and locally signed. The ALARM `[aur]`
+  binary repository is kept: it carries `qt6-base-headless`, which
+  `qbittorrent-nox` from `[extra]` needs (`libQt6Core.so.6`).
 - Every package is upgraded to the newest version during the image build
   (`pacman -Syu`).
 - `vim` is the default editor (`EDITOR`/`VISUAL`, and sudo's `editor` default);

@@ -16,15 +16,8 @@ configure_image_repos() {
 Server = https://mirrors.ustc.edu.cn/archlinuxarm/$arch/$repo
 EOF
 
-    # ALARM ships an almost-empty [aur] binary repo; drop it.
-    if grep -q '^\[aur\]' mnt/etc/pacman.conf; then
-        awk '
-            /^\[aur\]/ { skip = 1; next }
-            /^\[/ { skip = 0 }
-            !skip { print }
-        ' mnt/etc/pacman.conf > mnt/etc/pacman.conf.nanopi
-        mv mnt/etc/pacman.conf.nanopi mnt/etc/pacman.conf
-    fi
+    # Keep ALARM's [aur] binary repository: it carries qt6-base-headless,
+    # which qbittorrent-nox from [extra] needs (libQt6Core.so.6).
 
     if ! grep -q '^\[archlinuxcn\]' mnt/etc/pacman.conf; then
         cat >> mnt/etc/pacman.conf <<'EOF'
@@ -257,6 +250,13 @@ verify_appliance_stack() {
         echo "       udevil: OK (not installed)"
     else
         echo "       udevil: FAIL (udevil/devmon still installed)" >&2
+        failures=1
+    fi
+
+    if grep -q '^\[aur\]' mnt/etc/pacman.conf; then
+        echo "       pacman [aur]: OK (qt6-base-headless available)"
+    else
+        echo "       pacman [aur]: FAIL (ALARM [aur] repo was removed)" >&2
         failures=1
     fi
 
