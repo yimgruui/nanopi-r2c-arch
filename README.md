@@ -89,6 +89,8 @@ Replace `/dev/sdX` with the SD card device from `lsblk`.
 - Unplugging the device stops the unit and lazily unmounts the volume.
 - `ksmbd.service` has a drop-in ordering it after `usb-mount@sda1.service`, so
   a configured SMB share is not started before the data disk is mounted.
+- `nfs-server.service` has the same ordering, and `usb-mount@.service` runs
+  `exportfs -r` after a successful mount so NFS exports recover on hot-plug.
 
 ### Shell
 
@@ -122,6 +124,61 @@ The kernel module is `ksmbd` (built as a module); starting the service pulls it
 in. Add credentials (`valid users`, `write list`, ...) in `ksmbd.conf` before
 exposing the share beyond a trusted LAN.
 
+### NFS (enabled, read-only)
+
+The image installs `nfs-utils` and runs an NFS server for the `Video` share on
+the data disk. It is **read-only** and only exported to the LAN:
+
+```bash
+# NFSv3 (path-based)
+sudo mount -t nfs -o vers=3 192.168.11.184:/media/DATA/Video /mnt
+
+# NFSv4 (the export is the pseudo-root, so "/" is the Video directory)
+sudo mount -t nfs -o vers=4 192.168.11.184:/ /mnt
+```
+
+From another Linux machine, `showmount -e 192.168.11.184` lists the export.
+The export is configured in `/etc/exports` with:
+
+```text
+/media/DATA/Video *(ro,sync,no_subtree_check,all_squash,anonuid=1000,anongid=1000,insecure,fsid=0)
+```
+
+Only `Video` is exported; the private share is not. `all_squash` maps every
+client to `alarm` (uid/gid 1000), `ro` prevents writes, and `fsid=0` makes the
+same directory available as the NFSv4 root. If your disk label is not `DATA`,
+or you want to export a different directory, edit `/etc/exports` and reload:
+
+```bash
+sudoedit /etc/exports
+sudo exportfs -rav
+sudo systemctl reload nfs-server
+```
+
+Ports are pinned so the firewall can allow just NFS: `111` (rpcbind), `2049`
+(nfsd), `20048` (mountd), `32765` (statd) and `32768` (lockd, TCP and UDP).
+Settings live in `/etc/nfs.conf` and `/etc/modprobe.d/nfs-lockd.conf`.
+
+NFS has no user authentication; keep it on a trusted LAN and leave the export
+read-only unless you have a specific reason to allow writes.
+
+### Firewall
+
+`nftables` is enabled with a default-deny inbound policy. It allows SSH and
+DHCP client replies from any interface, and SMB/NFS only from RFC1918 addresses
+(`10/8`, `172.16/12`, `192.168/16`):
+
+- TCP: `22`, `445`, `111`, `2049`, `20048`, `32765`, `32768`
+- UDP: `68`, `546`, `111`, `2049`, `20048`, `32765`, `32768`
+
+The ruleset is `/etc/nftables.conf`. If your LAN uses another range (for
+example CGNAT/Tailscale `100.64.0.0/10`), add it to the `lan4` set and reload:
+
+```bash
+sudo nft -c -f /etc/nftables.conf
+sudo systemctl reload nftables
+```
+
 ### Packages and system
 
 - pacman uses the **USTC** mirrors for Arch Linux ARM and `archlinuxcn`; the
@@ -135,7 +192,9 @@ exposing the share beyond a trusted LAN.
 - Unused packages (`netctl`, `dhcpcd`, `net-tools`, `cloud-utils`), docs, man
   pages, unused locales, `Image.gz` and non-Rockchip DTBs are removed to keep
   the image small. `iptables` stays because `iproute2` links `libxtables`;
-  `nftables` is the firewall tool.
+  `nftables` is the firewall tool and its service is enabled.
+- `nfs-utils` provides the NFS server and client tools; `nftables` provides the
+  default-deny firewall described above.
 - Fan control follows a 51–75 °C PWM curve on the controller the device tree
   enables (PWM2 on the R2C); the `pwmchip` index is resolved at runtime.
 
@@ -184,6 +243,12 @@ The builder refuses to produce an image when something boot-critical is wrong:
   nls_cp936, nls_cp950). `ksmbd.mountd` exists while
   `ksmbd.service` stays disabled, `alarm` is in `wheel`, vim is the default
   editor and nano is gone.
+- NFS is installed and enabled: `exportfs`/`rpc.nfsd` exist, `/etc/exports`
+  contains the read-only `Video` export, `/etc/nfs.conf` carries the fixed
+  ports and `rdma=n`, the lockd module option and `nfs-server` usb-mount
+  drop-in are present, `nfs-server.service`, `rpcbind.socket` and
+  `nftables.service` are enabled, `nft -c -f /etc/nftables.conf` passes, and
+  the kernel ships `fs/nfsd/nfsd.ko` (or has NFSD built in).
 - The assembled image has a valid MBR, a byte-identical U-Boot payload,
   `/boot/boot.scr` and `rk3328-nanopi-r2c.dtb`.
 

@@ -1,0 +1,11 @@
+# /etc/exports - NFS exports for the NanoPi R2C appliance.
+#
+# The USB automounter mounts the DATA disk at /media/DATA (label-based).  Only
+# the Video share is exported, read-only, to the LAN.  NFSv4 uses this export
+# as its pseudo-root (fsid=0), so `mount server:/` and
+# `mount server:/media/DATA/Video` (NFSv3) both reach the same directory.
+#
+# nftables limits the NFS ports to RFC1918 clients.  If your LAN uses another
+# range, add it to /etc/nftables.conf.  For write access change `ro` to `rw`
+# and review the all_squash uid/gid first.
+/media/DATA/Video *(ro,sync,no_subtree_check,all_squash,anonuid=1000,anongid=1000,insecure,fsid=0)
