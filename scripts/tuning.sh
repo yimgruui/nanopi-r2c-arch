@@ -51,9 +51,8 @@ system_upgrade() {
 }
 
 install_appliance_packages() {
-    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, ntfsprogs, nfs-utils, nftables, zsh, sudo)..."
+    echo "    → Installing appliance packages (parted, exfatprogs, dosfstools, ntfs-3g, ntfsprogs, zsh, sudo)..."
     run_chroot_pacman -S --needed parted exfatprogs dosfstools ntfs-3g ntfsprogs \
-        nfs-utils nftables \
         zsh zsh-syntax-highlighting zsh-autosuggestions zsh-completions sudo
 
     # Nanopi appliance user: passwordless sudo via wheel.
@@ -132,23 +131,6 @@ configure_usb_mount() {
     sed -i -E \
         "s/^OWNER_UID=.*/OWNER_UID=${APPLIANCE_UID}/; s/^OWNER_GID=.*/OWNER_GID=${APPLIANCE_GID}/" \
         mnt/etc/usb-mount.conf
-}
-
-configure_nfs() {
-    echo "    → Configuring NFS server (read-only Video export) and firewall..."
-
-    install -D -m 0644 "$TEMPLATES_DIR/exports" mnt/etc/exports
-    install -D -m 0644 "$TEMPLATES_DIR/nfs.conf" mnt/etc/nfs.conf
-    install -D -m 0644 "$TEMPLATES_DIR/nfs-lockd.conf" \
-        mnt/etc/modprobe.d/nfs-lockd.conf
-    install -D -m 0644 "$TEMPLATES_DIR/nfs-server-usb-mount.conf" \
-        mnt/etc/systemd/system/nfs-server.service.d/usb-mount.conf
-    install -D -m 0644 "$TEMPLATES_DIR/nftables.conf" mnt/etc/nftables.conf
-
-    # nfs-server exports /media/DATA/Video; the drop-in orders it after the
-    # USB automount.  rpcbind.socket is needed for NFSv3 (and harmless for v4);
-    # nftables applies the appliance's default-deny inbound ruleset.
-    run_arch_chroot systemctl enable nfs-server.service rpcbind.socket nftables.service
 }
 
 configure_zsh() {
@@ -337,67 +319,6 @@ verify_appliance_stack() {
         echo "       firewall: OK (nft; iptables kept for iproute2's libxtables)"
     else
         echo "       firewall: FAIL (nft missing)" >&2
-        failures=1
-    fi
-
-    if run_arch_chroot test -x /usr/sbin/exportfs &&
-        run_arch_chroot test -x /usr/sbin/rpc.nfsd; then
-        echo "       NFS tools: OK (nfs-utils)"
-    else
-        echo "       NFS tools: FAIL (exportfs/rpc.nfsd missing)" >&2
-        failures=1
-    fi
-
-    if [ -f mnt/etc/exports ] &&
-        grep -q '^/media/DATA/Video[[:space:]]' mnt/etc/exports &&
-        grep -q 'all_squash' mnt/etc/exports && grep -q 'fsid=0' mnt/etc/exports; then
-        echo "       NFS exports: OK (/media/DATA/Video, read-only, NFSv4 root)"
-    else
-        echo "       NFS exports: FAIL (/etc/exports missing the Video export)" >&2
-        failures=1
-    fi
-
-    if grep -q '^port=20048$' mnt/etc/nfs.conf &&
-        grep -q '^port=32765$' mnt/etc/nfs.conf &&
-        grep -q '^port=32768$' mnt/etc/nfs.conf &&
-        grep -q '^vers2=n$' mnt/etc/nfs.conf &&
-        grep -q '^rdma=n$' mnt/etc/nfs.conf &&
-        grep -q 'nlm_tcpport=32768' mnt/etc/modprobe.d/nfs-lockd.conf; then
-        echo "       NFS ports: OK (mountd 20048, statd 32765, lockd 32768)"
-    else
-        echo "       NFS ports: FAIL (nfs.conf/nfs-lockd.conf not pinned)" >&2
-        failures=1
-    fi
-
-    if [ -f mnt/etc/systemd/system/nfs-server.service.d/usb-mount.conf ] &&
-        grep -q 'usb-mount@sda1.service' mnt/etc/systemd/system/nfs-server.service.d/usb-mount.conf &&
-        grep -q 'exportfs -r' mnt/etc/systemd/system/usb-mount@.service; then
-        echo "       NFS ordering: OK (nfs-server after usb-mount, reload on hotplug)"
-    else
-        echo "       NFS ordering: FAIL (drop-in or usb-mount exportfs hook missing)" >&2
-        failures=1
-    fi
-
-    if [ -e mnt/etc/systemd/system/multi-user.target.wants/nfs-server.service ] &&
-        [ -e mnt/etc/systemd/system/sockets.target.wants/rpcbind.socket ] &&
-        [ -e mnt/etc/systemd/system/multi-user.target.wants/nftables.service ]; then
-        echo "       NFS/firewall services: OK (enabled at boot)"
-    else
-        echo "       NFS/firewall services: FAIL (not enabled)" >&2
-        failures=1
-    fi
-
-    if run_arch_chroot nft -c -f /etc/nftables.conf; then
-        echo "       firewall ruleset: OK (nft syntax)"
-    else
-        echo "       firewall ruleset: FAIL (nft syntax)" >&2
-        failures=1
-    fi
-
-    if find mnt/usr/lib/modules -path '*/kernel/fs/nfsd/nfsd.ko*' -print -quit | grep -q .; then
-        echo "       kernel NFS server: OK (nfsd.ko)"
-    else
-        echo "       kernel NFS server: FAIL (nfsd.ko missing)" >&2
         failures=1
     fi
 

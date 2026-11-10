@@ -135,7 +135,7 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 | `KERNEL_VARIANT` | `stock` | `stock` or `minimal` |
 | `R2C_KERNEL_REPO_URL` | public nanopi-r2c-kernel-arch repo | minimal only |
 | `R2C_KERNEL_KEY_FPR` | empty | required for `minimal` |
-| `R2C_KERNEL_PKGVER` | latest | pin the minimal kernel version; must be >= 7.3.3-4 for NFSD and the automounter filesystems |
+| `R2C_KERNEL_PKGVER` | latest | pin the minimal kernel version; must be >= 7.3.3-3 for the automounter filesystems |
 | `IMAGE_SIZE` | `1900M` | raw image size |
 | `ROOTFS_HOSTNAME` | `nanopi-r2c` | `/etc/hostname` |
 | `BUILD_ROOT` | repository dir | generated data root |
@@ -158,13 +158,11 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 4. `arch-chroot` configuration: USTC mirrors + archlinuxcn, full
    `pacman -Syu`, network, LED/fan/zram services, `ksmbd-tools` built from the
    vendored PKGBUILD (ksmbd service left disabled), the generic USB automounter
-   installed (`ntfs-3g`/`ntfsprogs`, ksmbd ordering drop-in), `nfs-utils` with
-   the read-only Video export and fixed ports, the default-deny `nftables`
-   ruleset, zsh for `alarm` and `root` with syntax highlighting/autosuggestions,
-   user/editor defaults, package pruning and stripping.
-5. Stock kernel gets a Motorcomm PHY check and must provide `nfsd.ko`; the
-   minimal variant replaces the kernel from the signed pacman repo and must
-   provide the USB-media filesystems plus `nfsd`.
+   installed (`ntfs-3g`/`ntfsprogs`, ksmbd ordering drop-in), zsh for `alarm`
+   and `root` with syntax highlighting/autosuggestions, user/editor defaults,
+   package pruning and stripping.
+5. Stock kernel gets a Motorcomm PHY check; the minimal variant replaces the
+   kernel from the signed pacman repo.
 6. `/boot/boot.scr` generated, initramfs boot path verified (modules added and
    regenerated if missing), rootfs written with `mke2fs -d`.
 7. Image inspected (MBR, U-Boot payload hash, boot files, DTB), shrunk with
@@ -178,7 +176,7 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
 | `initramfs still lacks ...` | Kernel has the driver neither built in nor in the initramfs; add it to `MODULES` in `/etc/mkinitcpio.conf` or set `SHOULD_SKIP_INITRAMFS_CHECK=1` only if you know the image boots |
 | `stock kernel lacks the Motorcomm PHY driver` | ALARM changed the kernel config; the R2C WAN port will not link without `CONFIG_MOTORCOMM_PHY` |
 | AUR build fails | Delete `cache/aur-packages` to force a rebuild; check the pinned commit/tarball hashes in `packaging/*/PKGBUILD` |
-| `minimal kernel is missing USB-media/NFS modules` | The available/pinned `linux-nanopi-r2c-minimal` predates 7.3.3-4 (NFSD) or 7.3.3-3 (automounter filesystems); wait for the kernel repo release or pin `R2C_KERNEL_PKGVER` to a build that ships `nfsd.ko` |
+| `minimal kernel is missing USB-media filesystem modules` | The available/pinned `linux-nanopi-r2c-minimal` predates 7.3.3-3; wait for the kernel repo release or set `R2C_KERNEL_PKGVER=7.3.3-3` |
 | `exceeds GitHub's 2147483648-byte asset limit` | Lower `IMAGE_SIZE` or reduce content; the compressed `.img.xz` must stay below 2 GiB |
 | `failed to prepare transaction` during pruning | A package that is kept started depending on one being removed; drop it from the prune list in `scripts/tuning.sh` |
 | Release exists but a variant is missing | The minimal build is allowed to fail; the stock image still publishes and the workflow logs a warning |
@@ -190,8 +188,6 @@ sudo ./build-image.sh --shrink-only output/IMAGE.img
    hot-plug mount (ext4/vfat/exFAT/NTFS3/btrfs/XFS/F2FS, labelled and
    unlabelled), NTFS formatting with `mkntfs`, zsh highlighting/completion for
    `alarm` and `root`, fan curve; configure and start ksmbd manually to test
-   SMB; verify `showmount -e 192.168.11.184`, NFSv3 and NFSv4 mounts read the
-   Video share, and the firewall still allows SSH/SMB/NFS from the LAN while
-   dropping other inbound ports.
+   SMB.
 3. Merge to the default branch; the nightly `check-arch.yml` run will then
    publish the regular release.

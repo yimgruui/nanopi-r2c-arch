@@ -87,13 +87,6 @@ verify_stock_kernel_r2c() {
         exit 1
     }
 
-    if ! ls "mnt/usr/lib/modules/$kver"/kernel/fs/nfsd/nfsd.ko* >/dev/null 2>&1 &&
-        ! grep -qs 'fs/nfsd/nfsd' "mnt/usr/lib/modules/$kver/modules.builtin"; then
-        echo "Error: stock linux-aarch64 kernel lacks the NFS server module (CONFIG_NFSD)." >&2
-        echo "The image exports /media/DATA/Video over NFS; use a kernel with nfsd.ko." >&2
-        exit 1
-    fi
-
     if ls "mnt/usr/lib/modules/$kver"/kernel/drivers/net/phy/motorcomm.ko* >/dev/null 2>&1; then
         echo "    → Stock kernel has Motorcomm PHY driver (module: motorcomm.ko) — WAN OK"
         return 0
@@ -346,7 +339,6 @@ extract_and_configure() {
     install_appliance_packages
     install_aur_packages
     configure_usb_mount
-    configure_nfs
     configure_zsh
     configure_default_editor
     prune_packages

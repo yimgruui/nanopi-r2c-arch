@@ -245,12 +245,6 @@ jobs:
             - NTFS via the in-kernel `ntfs3` driver (stock and minimal);
               `ntfs-3g` remains a fallback and `ntfsprogs` provides
               `mkntfs`/`ntfsfix`.
-            - NFS server enabled read-only for the `Video` share:
-              `nfs-utils` with fixed ports, `/etc/exports` using `all_squash`
-              and `fsid=0` (NFSv3 and NFSv4), ordered after the USB mount and
-              refreshed on hot-plug.
-            - Default-deny `nftables` firewall: SSH/DHCP plus SMB/NFS from
-              RFC1918 LAN addresses only.
             - When SMB is enabled, `ksmbd` is ordered after the USB mount.
             - `zsh` for `alarm` and `root` with syntax highlighting,
               autosuggestions and completion; ANSI-only prompts, no extra

@@ -14,7 +14,4 @@ RemainAfterExit=yes
 # exFAT/vfat preen can take a while on a large volume after an unclean unplug.
 TimeoutStartSec=600
 ExecStart=/usr/local/sbin/usb-mount add %i
-# Refresh NFS exports when the data disk (re)appears; the leading '-' keeps
-# this harmless on systems that do not have nfs-utils installed.
-ExecStartPost=-/usr/sbin/exportfs -r
 ExecStop=/usr/local/sbin/usb-mount remove %i

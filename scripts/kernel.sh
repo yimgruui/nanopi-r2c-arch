@@ -113,11 +113,8 @@ verify_minimal_kernel() {
             missing+=("$fs")
         fi
     done
-    if ! find mnt/usr/lib/modules -path "*/kernel/fs/nfsd/nfsd.ko*" -print -quit | grep -q .; then
-        missing+=("nfsd")
-    fi
     if [ "${#missing[@]}" -gt 0 ]; then
-        echo "Error: minimal kernel is missing USB-media/NFS modules: ${missing[*]}" >&2
+        echo "Error: minimal kernel is missing USB-media filesystem modules: ${missing[*]}" >&2
         echo "       Update linux-nanopi-r2c-minimal or pin R2C_KERNEL_PKGVER." >&2
         return 1
     fi
